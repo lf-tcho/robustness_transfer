@@ -1,2 +1,5 @@
 models/
 data/
+log/
+*.pyc
+launch.json

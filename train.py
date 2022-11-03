@@ -3,17 +3,30 @@ from robustbench.utils import load_model
 import torch.optim as optim
 import torch.nn as nn
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+from pathlib import Path
+
+LOG_DIR = "./log"
 
 
 class Trainer:
     """Trainer class to train a model."""
 
-    def __init__(self, model, dataloader, loss, epochs, optimizer: str = "sgd"):
+    def __init__(
+        self,
+        model,
+        dataloader,
+        loss,
+        epochs,
+        experiment_name: str = "test",
+        optimizer: str = "sgd",
+    ):
         self.model = model
         self.dataloader = dataloader
         self.loss = loss
         self.epochs = epochs
         self.optimizer = optimizer
+        self.log_dir = Path(LOG_DIR) / experiment_name
 
     def get_optimizer(self):
         """Get optimizer."""
@@ -22,9 +35,11 @@ class Trainer:
 
     def train(self):
         """Train network."""
+        writer = SummaryWriter(log_dir=self.log_dir)
         optimizer = self.get_optimizer()
+        iteration = 0
         for epoch in range(self.epochs):
-            print(epoch)
+            print(f"Epoch: {epoch}")
             for batch in tqdm(self.dataloader):
                 inputs, labels = batch
                 optimizer.zero_grad()
@@ -32,7 +47,8 @@ class Trainer:
                 loss = self.loss(outputs, labels)
                 loss.backward()
                 optimizer.step()
-                # TODO: Add tensorboard progress tracking
+                writer.add_scalar("Loss/train", loss.item(), iteration)
+                iteration += self.dataloader.batch_size
 
 
 def main():
