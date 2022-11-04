@@ -1,5 +1,5 @@
 models/
 data/
-log/
+experiments/
 *.pyc
 launch.json
