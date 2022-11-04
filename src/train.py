@@ -1,12 +1,13 @@
-from dataloader import get_dataloader
-from robustbench.utils import load_model
-import torch.optim as optim
-import torch.nn as nn
+"""Training functionality."""
+
+
 import torch
 from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 import numpy as np
+
+CKPT_NAME = "ckpt"
 
 
 class Trainer:
@@ -55,7 +56,7 @@ class Trainer:
                     losses.append(metrics["loss"].item())
             loss = np.mean(losses)
             writer.add_scalar("Loss/val", loss, iteration)
-        self.save_model(f"ckpt{epoch}")
+        self.save_model(f"{CKPT_NAME}_{epoch}")
 
     def step(self, inputs, labels):
         """Do one batch step."""
@@ -65,21 +66,8 @@ class Trainer:
         return metrics
 
     def save_model(self, name):
-        """Save model."""
+        """Save model.
+
+        :param name: Name of checkpoint without file extension
+        """
         torch.save(self.model.state_dict(), self.experiment_folder / f"{name}.pth")
-
-
-def main():
-    model = load_model(
-        model_name="Carmon2019Unlabeled", dataset="cifar10", threat_model="Linf"
-    )
-    train_dataloader = get_dataloader("cifar10", True, batch_size=10, size=100)
-    eval_dataloader = get_dataloader("cifar10", False, batch_size=10, size=50)
-    loss = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    trainer = Trainer(model, train_dataloader, eval_dataloader, loss, 10, optimizer)
-    trainer.train()
-
-
-if __name__ == "__main__":
-    main()
