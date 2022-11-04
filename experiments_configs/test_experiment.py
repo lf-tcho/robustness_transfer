@@ -7,9 +7,6 @@ from src.experiment import Experiment
 
 
 class TestExperiment(Experiment):
-    def __init__(self, experiment_name) -> None:
-        self.experiment_name = experiment_name
-
     def get_model(self):
         return load_model(
             model_name="Carmon2019Unlabeled", dataset="cifar10", threat_model="Linf"
