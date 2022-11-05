@@ -2,7 +2,7 @@ from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
 import torch.nn as nn
-from src.train import Trainer
+from src.trainer import Trainer
 from src.experiment import Experiment
 
 

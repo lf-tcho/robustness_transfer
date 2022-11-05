@@ -22,8 +22,10 @@ class Trainer:
         epochs,
         optimizer,
         experiment_name: str = "test",
+        device: torch.device = torch.device("cpu"),
     ):
-        self.model = model
+        self.device = device
+        self.model = model.to(self.device)
         self.train_dataloader = train_dataloader
         self.eval_dataloader = eval_dataloader
         self.loss = loss
@@ -61,8 +63,8 @@ class Trainer:
     def step(self, inputs, labels):
         """Do one batch step."""
         metrics = {}
-        model_output = self.model(inputs)
-        metrics["loss"] = self.loss(model_output, labels)
+        model_output = self.model(inputs.to(self.device))
+        metrics["loss"] = self.loss(model_output, labels.to(self.device))
         return metrics
 
     def save_model(self, name):
