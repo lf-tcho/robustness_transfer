@@ -37,8 +37,9 @@ class Trainer:
         """Train network."""
         writer = SummaryWriter(log_dir=self.experiment_folder / "logs")
         optimizer = self.optimizer
-        iteration = 0
-        for epoch in range(self.epochs):
+        latest_epoch = self.load_model()
+        iteration = (latest_epoch + 1) * len(self.train_dataloader)
+        for epoch in range(latest_epoch + 1, self.epochs):
             print(f"Epoch: {epoch}")
             # Train one epoch
             for inputs, labels in tqdm(self.train_dataloader):
@@ -58,7 +59,7 @@ class Trainer:
                     losses.append(metrics["loss"].item())
             loss = np.mean(losses)
             writer.add_scalar("Loss/val", loss, iteration)
-        self.save_model(f"{CKPT_NAME}_{epoch}")
+            self.save_model(f"{CKPT_NAME}_{epoch}")
 
     def step(self, inputs, labels):
         """Do one batch step."""
@@ -73,3 +74,16 @@ class Trainer:
         :param name: Name of checkpoint without file extension
         """
         torch.save(self.model.state_dict(), self.experiment_folder / f"{name}.pth")
+
+    def load_model(self):
+        """Load latest model and get epoch."""
+        ckpts = sorted(list(self.experiment_folder.glob("*.pth")))
+        if ckpts:
+            latest_epoch = int(ckpts[-1].stem.split("_")[-1])
+            self.model.load_state_dict(
+                torch.load(self.experiment_folder / f"{CKPT_NAME}_{latest_epoch}.pth")
+            )
+            print(f"Model checkpoint {CKPT_NAME}_{latest_epoch}.pth loaded.")
+            return latest_epoch
+        else:
+            return -1

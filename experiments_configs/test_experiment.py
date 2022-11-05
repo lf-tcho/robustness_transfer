@@ -14,8 +14,8 @@ class TestExperiment(Experiment):
 
     def run(self):
         model = self.get_model()
-        train_dataloader = get_dataloader("cifar10", True, batch_size=10, size=100)
-        eval_dataloader = get_dataloader("cifar10", False, batch_size=10, size=50)
+        train_dataloader = get_dataloader("cifar10", True, batch_size=1, size=10)
+        eval_dataloader = get_dataloader("cifar10", False, batch_size=1, size=5)
         loss = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
         trainer = Trainer(
