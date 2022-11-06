@@ -78,7 +78,16 @@ class LpExperiment(Experiment):
         return transforms
 
     def freeze(self):
-        return {"fc": [i for i in range(self.epochs)]}
+        """Define freeze dictionary."""
+        epochs = [i for i in range(self.epochs)]
+        return {
+            "conv1": epochs,
+            "block1": epochs,
+            "block2": epochs,
+            "block3": epochs,
+            "bn1": epochs,
+            "relu": epochs,
+        }
 
 
 def main():
