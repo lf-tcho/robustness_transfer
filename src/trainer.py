@@ -59,14 +59,18 @@ class Trainer:
 
             # Evaluate model
             losses = []
+            accuracies = []
             with torch.no_grad():
                 for inputs, labels in tqdm(
                     self.eval_dataloader, desc=f"Epoch {epoch} (eval): "
                 ):
                     metrics = self.step(inputs, labels)
                     losses.append(metrics["loss"].item())
+                    accuracies.append(metrics["accuracy"].item())
             loss = np.mean(losses)
+            accuracy = np.mean(accuracies)
             writer.add_scalar("Loss/val", loss, iteration)
+            writer.add_scalar("Accuracy/val", accuracy, iteration)
             self.save_model(f"{CKPT_NAME}_{epoch}")
 
     def step(self, inputs, labels):
@@ -74,6 +78,8 @@ class Trainer:
         metrics = {}
         model_output = self.model(inputs.to(self.device))
         metrics["loss"] = self.loss(model_output, labels.to(self.device))
+        _, indices = model_output.max(dim=1)
+        metrics["accuracy"] = torch.sum(indices == labels) / inputs.shape[0]
         return metrics
 
     def save_model(self, name):
