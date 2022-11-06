@@ -1,7 +1,8 @@
 import torchvision.datasets as datasets
 from torch.utils.data import DataLoader, Subset
-from torchvision import transforms
+from torchvision.transforms import Compose, ToTensor
 import torch
+from typing import List
 
 
 DATA_DIR = "./data"
@@ -19,7 +20,14 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
             root=DATA_DIR,
             train=train,
             download=True,
-            transform=transforms.Compose([transforms.ToTensor()]),
+            transform=Compose([ToTensor()]),
+        )
+    if dataset_name == "cifar100":
+        dataset = datasets.CIFAR100(
+            root=DATA_DIR,
+            train=train,
+            download=True,
+            transform=Compose([ToTensor()]),
         )
     if size:
         indices = torch.arange(size)
@@ -28,7 +36,11 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
 
 
 def get_dataloader(
-    dataset_name: str, train: bool = False, batch_size: int = 1, size: int = None
+    dataset_name: str,
+    train: bool = False,
+    batch_size: int = 1,
+    size: int = None,
+    transforms: List = [],
 ):
     """Get dataloader for given dataset name.
 
@@ -38,4 +50,6 @@ def get_dataloader(
     :param size: Takes only first size number of items of dataset
     """
     dataset = get_dataset(dataset_name, train, size)
+    if transforms:
+        dataset.transform = Compose(transforms)
     return DataLoader(dataset, batch_size)
