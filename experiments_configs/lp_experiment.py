@@ -103,7 +103,10 @@ def main():
         f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}"
     )
     experiment = LpExperiment(
-        experiment_name, args.batch_size, args.epochs, args.learning_rate
+        experiment_name,
+        int(args.batch_size),
+        int(args.epochs),
+        float(args.learning_rate),
     )
     experiment.run(torch.device(args.device))
 
