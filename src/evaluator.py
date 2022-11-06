@@ -9,7 +9,10 @@ from tqdm import tqdm
 
 
 class Evaluator:
+    """Class to evaluate metrics (e.g. accurarcy or robost accuracy) for a given experiment."""
+
     def __init__(self, experiment: Experiment, dataloader, epoch: int = None) -> None:
+        # TODO: Add device for gpu support
         self.experiment = experiment
         self.epoch = epoch
         self.dataloader = dataloader
@@ -33,6 +36,11 @@ class Evaluator:
         print(f"Robust accuracy: {robust_accuracy}")
 
     def load_model(self):
+        """Load model.
+
+        If self.epoch is None loads original model (no checkpoint).
+        If self.epoch is given load respective checkpoint.
+        """
         model = self.experiment.get_model()
         if self.epoch:
             experiment_folder = Path("./experiments") / self.experiment.experiment_name
