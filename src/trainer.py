@@ -43,11 +43,12 @@ class Trainer:
         latest_epoch = self.load_model()
         iteration = (latest_epoch + 1) * len(self.train_dataloader)
         for epoch in range(latest_epoch + 1, self.epochs):
-            print(f"Epoch: {epoch}")
             if self.freeze:
                 self.freeze_model(self.model, epoch, self.freeze)
             # Train one epoch
-            for inputs, labels in tqdm(self.train_dataloader):
+            for inputs, labels in tqdm(
+                self.train_dataloader, desc=f"Epoch {epoch} (train): "
+            ):
                 iteration += self.train_dataloader.batch_size
                 optimizer.zero_grad()
                 metrics = self.step(inputs, labels)
@@ -59,7 +60,9 @@ class Trainer:
             # Evaluate model
             losses = []
             with torch.no_grad():
-                for inputs, labels in tqdm(self.eval_dataloader):
+                for inputs, labels in tqdm(
+                    self.eval_dataloader, desc=f"Epoch {epoch} (eval): "
+                ):
                     metrics = self.step(inputs, labels)
                     losses.append(metrics["loss"].item())
             loss = np.mean(losses)
