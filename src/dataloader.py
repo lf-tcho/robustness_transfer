@@ -16,19 +16,9 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     :param size: Takes only first size number of items of dataset
     """
     if dataset_name == "cifar10":
-        dataset = datasets.CIFAR10(
-            root=DATA_DIR,
-            train=train,
-            download=True,
-            transform=Compose([ToTensor()]),
-        )
+        dataset = datasets.CIFAR10(root=DATA_DIR, train=train, download=True)
     if dataset_name == "cifar100":
-        dataset = datasets.CIFAR100(
-            root=DATA_DIR,
-            train=train,
-            download=True,
-            transform=Compose([ToTensor()]),
-        )
+        dataset = datasets.CIFAR100(root=DATA_DIR, train=train, download=True)
     if size:
         indices = torch.arange(size)
         dataset = Subset(dataset, indices)
@@ -51,6 +41,9 @@ def get_dataloader(
     :param size: Takes only first size number of items of dataset
     """
     dataset = get_dataset(dataset_name, train, size)
-    if transforms:
+    transforms = [ToTensor()] + transforms
+    if isinstance(dataset, torch.utils.data.Subset):
+        dataset.dataset.transform = Compose(transforms)
+    else:
         dataset.transform = Compose(transforms)
     return DataLoader(dataset, batch_size, shuffle=shuffle)
