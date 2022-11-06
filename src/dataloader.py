@@ -41,6 +41,7 @@ def get_dataloader(
     batch_size: int = 1,
     size: int = None,
     transforms: List = [],
+    shuffle: bool = False,
 ):
     """Get dataloader for given dataset name.
 
@@ -52,4 +53,4 @@ def get_dataloader(
     dataset = get_dataset(dataset_name, train, size)
     if transforms:
         dataset.transform = Compose(transforms)
-    return DataLoader(dataset, batch_size)
+    return DataLoader(dataset, batch_size, shuffle=shuffle)
