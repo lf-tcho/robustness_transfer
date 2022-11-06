@@ -8,7 +8,10 @@ import torch
 
 
 class LpFtExperiment(Experiment):
+    """Experiment for linear probing then fine tuning."""
+
     def get_model(self):
+        """Get model."""
         return load_model(
             model_name="Addepalli2022Efficient_WRN_34_10",
             dataset="cifar100",
@@ -16,6 +19,7 @@ class LpFtExperiment(Experiment):
         )
 
     def run(self):
+        """Run experiment."""
         model = self.get_model()
         model.fc = torch.nn.Linear(640, 10)
         train_dataloader = get_dataloader("cifar10", True, batch_size=1, size=10)
