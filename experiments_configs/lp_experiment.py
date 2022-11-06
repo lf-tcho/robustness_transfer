@@ -1,3 +1,4 @@
+import argparse
 from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
@@ -16,6 +17,18 @@ from torchvision.transforms import (
 class LpExperiment(Experiment):
     """Experiment for linear probing."""
 
+    def __init__(
+        self,
+        experiment_name,
+        batch_size: int = 128,
+        epochs: int = 10,
+        learning_rate: float = 0.001,
+    ):
+        super().__init__(experiment_name)
+        self.batch_size = batch_size
+        self.epochs = epochs
+        self.learning_rate = learning_rate
+
     def get_model(self):
         """Get model."""
         return load_model(
@@ -24,7 +37,7 @@ class LpExperiment(Experiment):
             threat_model="Linf",
         )
 
-    def run(self):
+    def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
         model = self.get_model()
         # Change output size of model to 10 classes
@@ -32,25 +45,25 @@ class LpExperiment(Experiment):
         train_dataloader = get_dataloader(
             "cifar10",
             True,
-            batch_size=1,
-            size=10,
+            batch_size=self.batch_size,
             shuffle=True,
             transforms=self.transfroms(True),
         )
         eval_dataloader = get_dataloader(
-            "cifar10", False, batch_size=1, size=5, transforms=self.transfroms()
+            "cifar10", False, batch_size=self.batch_size, transforms=self.transfroms()
         )
         loss = nn.CrossEntropyLoss()
-        optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
         trainer = Trainer(
             model,
             train_dataloader,
             eval_dataloader,
             loss,
-            5,
+            self.epochs,
             optimizer,
             self.experiment_name,
             freeze=self.freeze(),
+            device=device,
         )
         trainer.train()
 
@@ -65,9 +78,26 @@ class LpExperiment(Experiment):
         return transforms
 
     def freeze(self):
-        return {"fc": [0, 1, 2, 3]}
+        return {"fc": [i for i in range(self.epochs)]}
+
+
+def main():
+    """Command line tool to run experiment."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-bs", "--batch_size", default=5)
+    parser.add_argument("-eps", "--epochs", default=10)
+    parser.add_argument("-lr", "--learning_rate", default=0.001)
+    parser.add_argument("-device", "--device", default="cpu")
+
+    args = parser.parse_args()
+    experiment_name = (
+        f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}"
+    )
+    experiment = LpExperiment(
+        experiment_name, args.batch_size, args.epochs, args.learning_rate
+    )
+    experiment.run(torch.device(args.device))
 
 
 if __name__ == "__main__":
-    experiment = LpExperiment("lp")
-    experiment.run()
+    main()
