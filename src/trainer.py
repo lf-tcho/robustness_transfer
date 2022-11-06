@@ -6,6 +6,7 @@ from tqdm import tqdm
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 import numpy as np
+from typing import List
 
 CKPT_NAME = "ckpt"
 
@@ -23,6 +24,7 @@ class Trainer:
         optimizer,
         experiment_name: str = "test",
         device: torch.device = torch.device("cpu"),
+        freeze: dict = None,
     ):
         self.device = device
         self.model = model.to(self.device)
@@ -32,6 +34,7 @@ class Trainer:
         self.epochs = epochs
         self.optimizer = optimizer
         self.experiment_folder = Path("./experiments") / experiment_name
+        self.freeze = freeze
 
     def train(self):
         """Train network."""
@@ -41,6 +44,8 @@ class Trainer:
         iteration = (latest_epoch + 1) * len(self.train_dataloader)
         for epoch in range(latest_epoch + 1, self.epochs):
             print(f"Epoch: {epoch}")
+            if self.freeze:
+                self.freeze_model(self.model, epoch, self.freeze)
             # Train one epoch
             for inputs, labels in tqdm(self.train_dataloader):
                 iteration += self.train_dataloader.batch_size
@@ -87,3 +92,26 @@ class Trainer:
             return latest_epoch
         else:
             return -1
+
+    def freeze_model(self, model, epoch: int, freeze: dict = None):
+        """Freeze part of model.
+
+        :param model: A pytorch module
+        :param epoch: Current epoch
+        :param freeze: A recursive dictionary. Keys are module names.
+                       Values are either lists of epochs where the model
+                       should be frozen or is a dictionary which specifies
+                       specific modules.
+        """
+        if freeze:
+            for module_name, value in freeze:
+                module = getattr(model, module_name)
+                if isinstance(value, List):
+                    if epoch in value:
+                        module.requires_grad_(False)
+                    else:
+                        module.requires_grad_(True)
+                else:
+                    self.freeze(module, epoch, value)
+        else:
+            self.model.requires_grad_(True)
