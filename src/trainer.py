@@ -104,7 +104,7 @@ class Trainer:
                        specific modules.
         """
         if freeze:
-            for module_name, value in freeze:
+            for module_name, value in freeze.items():
                 module = getattr(model, module_name)
                 if isinstance(value, List):
                     if epoch in value:
