@@ -53,11 +53,11 @@ class Evaluator:
 
 
 if __name__ == "__main__":
-    from experiments_configs.lp_ft_experiment import LpFtExperiment
+    from experiments_configs.lp_experiment import LpExperiment
     from src.dataloader import get_dataloader
     from torchvision.transforms import Normalize
 
-    experiment = LpFtExperiment("lp_ft")
+    experiment = LpExperiment("lp_ft")
     transforms = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     dataloader = get_dataloader("cifar100", False, 5, 50, transforms)
     evaluator = Evaluator(experiment, dataloader)

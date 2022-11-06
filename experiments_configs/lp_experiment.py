@@ -13,8 +13,8 @@ from torchvision.transforms import (
 )
 
 
-class LpFtExperiment(Experiment):
-    """Experiment for linear probing then fine tuning."""
+class LpExperiment(Experiment):
+    """Experiment for linear probing."""
 
     def get_model(self):
         """Get model."""
@@ -50,6 +50,7 @@ class LpFtExperiment(Experiment):
             5,
             optimizer,
             self.experiment_name,
+            freeze=self.freeze(),
         )
         trainer.train()
 
@@ -63,7 +64,10 @@ class LpFtExperiment(Experiment):
         transforms.append(Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
         return transforms
 
+    def freeze(self):
+        return {"fc": [0, 1, 2, 3]}
+
 
 if __name__ == "__main__":
-    experiment = LpFtExperiment("lp_ft")
+    experiment = LpExperiment("lp")
     experiment.run()
