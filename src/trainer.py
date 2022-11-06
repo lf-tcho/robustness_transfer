@@ -51,7 +51,7 @@ class Trainer:
             ):
                 iteration += self.train_dataloader.batch_size
                 optimizer.zero_grad()
-                metrics = self.step(inputs, labels)
+                metrics = self.step(inputs.to(self.device), labels.to(self.device))
                 loss = metrics["loss"]
                 loss.backward()
                 optimizer.step()
@@ -64,7 +64,7 @@ class Trainer:
                 for inputs, labels in tqdm(
                     self.eval_dataloader, desc=f"Epoch {epoch} (eval): "
                 ):
-                    metrics = self.step(inputs, labels)
+                    metrics = self.step(inputs.to(self.device), labels.to(self.device))
                     losses.append(metrics["loss"].item())
                     accuracies.append(metrics["accuracy"].item())
             loss = np.mean(losses)
