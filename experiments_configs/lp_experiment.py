@@ -98,14 +98,18 @@ class LpExperiment(Experiment):
 
 
 def main():
-    """Command line tool to run experiment."""
+    """Command line tool to run experiment and evaluation."""
     parser = argparse.ArgumentParser()
     parser.add_argument("-bs", "--batch_size", default=5)
     parser.add_argument("-eps", "--epochs", default=10)
     parser.add_argument("-lr", "--learning_rate", default=0.001)
     parser.add_argument("-device", "--device", default="cpu")
     parser.add_argument("-lp", "--lp", default=1)
-
+    parser.add_argument("-eval", "--eval", default=0)
+    parser.add_argument("-train", "--train", default=0)
+    parser.add_argument("-evaleps", "--evaleps", default=None)
+    parser.add_argument("-evalbs", "--evalbs", default=32)
+    parser.add_argument("-evaldssize", "--evaldssize", default=None)
     args = parser.parse_args()
     experiment_name = f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_lp_{args.lp}"
     experiment = LpExperiment(
@@ -115,7 +119,28 @@ def main():
         float(args.learning_rate),
         bool(args.lp),
     )
-    experiment.run(torch.device(args.device))
+
+    if args.train:
+        experiment.run(torch.device(args.device))
+
+    if args.eval:
+        from src.evaluator import Evaluator
+
+        transforms = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        dataloader = get_dataloader(
+            "cifar10",
+            False,
+            int(args.evalbs),
+            int(args.evaldssize) if args.evaldssize else None,
+            transforms,
+        )
+        evaluator = Evaluator(
+            experiment,
+            dataloader,
+            epoch=int(args.evaleps) if args.evaleps else None,
+            device=torch.device(args.device),
+        )
+        evaluator.eval()
 
 
 if __name__ == "__main__":
