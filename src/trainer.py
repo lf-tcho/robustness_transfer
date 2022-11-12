@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 import numpy as np
 from typing import List
+import operator
 
 CKPT_NAME = "ckpt"
 
@@ -108,20 +109,15 @@ class Trainer:
 
         :param model: A pytorch module
         :param epoch: Current epoch
-        :param freeze: A recursive dictionary. Keys are module names.
-                       Values are either lists of epochs where the model
-                       should be frozen or is a dictionary which specifies
-                       specific modules.
+        :param freeze: Keys are module names (separated by dots).
+            Values are epochs where the model should be frozen.
         """
         if freeze:
-            for module_name, value in freeze.items():
-                module = getattr(model, module_name)
-                if isinstance(value, List):
-                    if epoch in value:
-                        module.requires_grad_(False)
-                    else:
-                        module.requires_grad_(True)
+            for module_name, epochs in freeze.items():
+                module = operator.attrgetter(module_name)(model)
+                if epoch in epochs:
+                    module.requires_grad_(False)
                 else:
-                    self.freeze(module, epoch, value)
+                    module.requires_grad_(True)
         else:
             self.model.requires_grad_(True)
