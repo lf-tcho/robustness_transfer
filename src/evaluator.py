@@ -25,7 +25,7 @@ class Evaluator:
 
     def eval(self):
         """Run evaluation for an experiment."""
-        model = self.load_model()
+        model = self.load_model().eval()
         fmodel = fb.PyTorchModel(model, bounds=(-1, 1))
         accuracy = 0
         robust_accuracy = 0
