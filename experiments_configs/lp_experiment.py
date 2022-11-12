@@ -23,11 +23,13 @@ class LpExperiment(Experiment):
         batch_size: int = 128,
         epochs: int = 10,
         learning_rate: float = 0.001,
+        lp: bool = True,
     ):
         super().__init__(experiment_name)
         self.batch_size = batch_size
         self.epochs = epochs
         self.learning_rate = learning_rate
+        self.lp = lp
 
     def get_model(self):
         """Get model."""
@@ -81,15 +83,18 @@ class LpExperiment(Experiment):
 
     def freeze(self):
         """Define freeze dictionary."""
-        epochs = [i for i in range(self.epochs)]
-        return {
-            "conv1": epochs,
-            "block1": epochs,
-            "block2": epochs,
-            "block3": epochs,
-            "bn1": epochs,
-            "relu": epochs,
-        }
+        if self.lp:
+            epochs = [i for i in range(self.epochs)]
+            return {
+                "conv1": epochs,
+                "block1": epochs,
+                "block2": epochs,
+                "block3": epochs,
+                "bn1": epochs,
+                "relu": epochs,
+            }
+        else:
+            return None
 
 
 def main():
@@ -99,11 +104,10 @@ def main():
     parser.add_argument("-eps", "--epochs", default=10)
     parser.add_argument("-lr", "--learning_rate", default=0.001)
     parser.add_argument("-device", "--device", default="cpu")
+    parser.add_argument("-lp", "--lp", default=True)
 
     args = parser.parse_args()
-    experiment_name = (
-        f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}"
-    )
+    experiment_name = f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_lp_{args.lp}"
     experiment = LpExperiment(
         experiment_name,
         int(args.batch_size),
