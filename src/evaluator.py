@@ -23,6 +23,7 @@ class Evaluator:
         self.epoch = epoch
         self.dataloader = dataloader
         self.device = device
+        self.experiment_folder = Path("./experiments") / self.experiment.experiment_name
 
     def eval(self):
         """Run evaluation for an experiment."""
@@ -42,8 +43,7 @@ class Evaluator:
         robust_accuracy = robust_accuracy / len(self.dataloader.dataset)
         print(f"Robust accuracy: {robust_accuracy}")
         output = {"accuracy": accuracy, "robust_accuracy": robust_accuracy}
-        experiment_folder = Path("./experiments") / self.experiment.experiment_name
-        with open(experiment_folder / "metrics.json", "w") as file:
+        with open(self.experiment_folder / "metrics.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self):
@@ -54,8 +54,7 @@ class Evaluator:
         """
         model = self.experiment.get_model().to(self.device)
         if self.epoch:
-            experiment_folder = Path("./experiments") / self.experiment.experiment_name
-            ckpt = experiment_folder / f"{CKPT_NAME}_{self.epoch}.pth"
+            ckpt = self.experiment_folder / f"{CKPT_NAME}_{self.epoch}.pth"
             model.load_state_dict(torch.load(ckpt, map_location=self.device))
             print(f"Loaded checkpoint {ckpt}")
             return model
