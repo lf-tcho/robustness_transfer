@@ -6,6 +6,7 @@ import torch
 from pathlib import Path
 import foolbox as fb
 from tqdm import tqdm
+import json
 
 
 class Evaluator:
@@ -40,6 +41,10 @@ class Evaluator:
         print(f"Accurarcy: {accuracy}")
         robust_accuracy = robust_accuracy / len(self.dataloader.dataset)
         print(f"Robust accuracy: {robust_accuracy}")
+        output = {"accuracy": accuracy, "robust_accuracy": robust_accuracy}
+        experiment_folder = Path("./experiments") / self.experiment.experiment_name
+        with open(experiment_folder / "metrics.json", "w") as file:
+            json.dump(output, file)
 
     def load_model(self):
         """Load model.
