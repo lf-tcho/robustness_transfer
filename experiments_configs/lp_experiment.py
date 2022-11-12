@@ -49,10 +49,10 @@ class LpExperiment(Experiment):
             True,
             batch_size=self.batch_size,
             shuffle=True,
-            transforms=self.transfroms(True),
+            transforms=self.transforms(True),
         )
         eval_dataloader = get_dataloader(
-            "cifar10", False, batch_size=self.batch_size, transforms=self.transfroms()
+            "cifar10", False, batch_size=self.batch_size, transforms=self.transforms()
         )
         loss = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
@@ -69,7 +69,7 @@ class LpExperiment(Experiment):
         )
         trainer.train()
 
-    def transfroms(self, train: bool = False):
+    def transforms(self, train: bool = False):
         """Load transforms depending on training or evaluation dataset."""
         transforms = []
         if train:
