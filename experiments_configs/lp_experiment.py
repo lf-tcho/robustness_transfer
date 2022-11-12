@@ -31,17 +31,19 @@ class LpExperiment(Experiment):
 
     def get_model(self):
         """Get model."""
-        return load_model(
+        model = load_model(
             model_name="Addepalli2022Efficient_WRN_34_10",
             dataset="cifar100",
             threat_model="Linf",
         )
+        # Change output size of model to 10 classes
+        model.fc = torch.nn.Linear(640, 10)
+        return model
 
     def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
         model = self.get_model()
-        # Change output size of model to 10 classes
-        model.fc = torch.nn.Linear(640, 10)
+
         train_dataloader = get_dataloader(
             "cifar10",
             True,

@@ -94,10 +94,9 @@ class Trainer:
         ckpts = sorted(list(self.experiment_folder.glob("*.pth")))
         if ckpts:
             latest_epoch = int(ckpts[-1].stem.split("_")[-1])
-            self.model.load_state_dict(
-                torch.load(self.experiment_folder / f"{CKPT_NAME}_{latest_epoch}.pth")
-            )
-            print(f"Model checkpoint {CKPT_NAME}_{latest_epoch}.pth loaded.")
+            ckpt = f"{CKPT_NAME}_{latest_epoch}.pth"
+            self.model.load_state_dict(torch.load(self.experiment_folder / ckpt))
+            print(f"Model checkpoint {ckpt} loaded.")
             return latest_epoch
         else:
             return -1
