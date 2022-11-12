@@ -104,7 +104,7 @@ def main():
     parser.add_argument("-eps", "--epochs", default=10)
     parser.add_argument("-lr", "--learning_rate", default=0.001)
     parser.add_argument("-device", "--device", default="cpu")
-    parser.add_argument("-lp", "--lp", default=True)
+    parser.add_argument("-lp", "--lp", default=1)
 
     args = parser.parse_args()
     experiment_name = f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_lp_{args.lp}"
@@ -113,6 +113,7 @@ def main():
         int(args.batch_size),
         int(args.epochs),
         float(args.learning_rate),
+        bool(args.lp),
     )
     experiment.run(torch.device(args.device))
 
