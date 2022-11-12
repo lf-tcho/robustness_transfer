@@ -46,6 +46,7 @@ class Trainer:
             if self.freeze:
                 self.freeze_model(self.model, epoch, self.freeze)
             # Train one epoch
+            self.model.train()
             for inputs, labels in tqdm(
                 self.train_dataloader, desc=f"Epoch {epoch} (train): "
             ):
@@ -58,6 +59,7 @@ class Trainer:
                 writer.add_scalar("Loss/train", loss.item(), iteration)
 
             # Evaluate model
+            self.model.eval()
             losses = []
             accuracies = []
             with torch.no_grad():
