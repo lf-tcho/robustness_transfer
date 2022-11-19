@@ -1,11 +1,71 @@
+from math import ceil
+from pathlib import Path
 import torchvision.datasets as datasets
 from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import Compose, ToTensor
 import torch
 from typing import List
-
+from src.utils import download_url, unzip, copy_all_files
+import glob
+from torchvision.io import read_image
+from torch.utils.data import Dataset
 
 DATA_DIR = "./data"
+
+
+class WeatherDataset(Dataset):
+    """Dataset of cloudy, rain, shine and sunrise weather images."""
+    category2id = {"cloudy": 0, "rain": 1, "shine": 2, "sunrise": 3}
+    """Mapping from category name to label id."""
+    num_img_per_category = {"cloudy": 300, "rain": 215, "shine": 253, "sunrise": 357}
+    """Total number of images per category."""
+    split = 0.8
+    """Split ratio between train and test. Split is for train set."""
+    dataset_folder = Path(DATA_DIR) / "weather_data"
+    """Folder to store images in."""
+
+    def __init__(self, train: bool = False, transform: List = None):
+        """Initilize dataset.
+
+        :param train: If True train set is return, else test set
+        :param transform: Transfroms to apply to images
+        """
+        self.download_weather_data()
+        self.transform = transform
+        self.img_list = []
+        for cls, num_imgs in self.num_img_per_category.items():
+            split = ceil(num_imgs * self.split)
+            start, stop = (0, split) if train else (split, num_imgs)
+            for i in range(start, stop):
+                self.img_list.append(f"{cls}{i}")
+
+    def __len__(self):
+        return len(self.img_list)
+
+    def __getitem__(self, idx):
+        img_path = self.dataset_folder / f"{self.img_list[idx]}.jpg"
+        img = read_image(str(img_path))
+        img_category = "".join([i for i in img_path.stem if not i.isdigit()])
+        label = self.category2id[img_category]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+    @classmethod
+    def download_weather_data(cls):
+        """Download weather dataset."""
+        url = r"https://prod-dcd-datasets-cache-zipfiles.s3.eu-west-1.amazonaws.com/4drtyfjtfy-1.zip"
+        image_count = len(glob.glob1(cls.dataset_folder, "*.jpg"))
+        if image_count == 1122:
+            print("Dataset already downloaded.")
+            return
+        cls.dataset_folder.mkdir(parents=True, exist_ok=True)
+        zip_file = Path(DATA_DIR) / "weather_data.zip"
+        download_url(url=url, save_path=zip_file)
+        unzip(zip_file, Path(DATA_DIR))
+        unzip(Path(DATA_DIR) / "dataset2.zip", Path(DATA_DIR))
+        output_folder = Path(DATA_DIR) / "dataset2"
+        copy_all_files(output_folder, cls.dataset_folder)
 
 
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
