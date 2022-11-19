@@ -6,12 +6,7 @@ import torch.nn as nn
 from src.trainer import Trainer
 from src.experiment import Experiment
 import torch
-from torchvision.transforms import (
-    RandomResizedCrop,
-    RandomVerticalFlip,
-    RandomHorizontalFlip,
-    Normalize,
-)
+from torchvision.transforms import Normalize
 
 
 class LpExperiment(Experiment):
@@ -23,13 +18,24 @@ class LpExperiment(Experiment):
         batch_size: int = 128,
         epochs: int = 10,
         learning_rate: float = 0.001,
-        lp: bool = True,
+        tf_method: str = "lp",
+        lp_epochs: int = 0,
     ):
+        """Initilize LpExperiment.
+
+        :param experiment_name: Name of experiment
+        :param batch_size: Batch size for training
+        :param epochs: Training epochs
+        :param learning_rate: Learning rate for training
+        :param tf_method: Transfer learning method ("lp", "lp_ft", None)
+        :param lp_epochs: Number of epochs of linear probing before full fine-tuning. Only used for method lp_ft
+        """
         super().__init__(experiment_name)
         self.batch_size = batch_size
         self.epochs = epochs
         self.learning_rate = learning_rate
-        self.lp = lp
+        self.tf_method = tf_method
+        self.lp_epochs = lp_epochs
 
     def get_model(self):
         """Get model."""
@@ -77,8 +83,18 @@ class LpExperiment(Experiment):
 
     def freeze(self):
         """Define freeze dictionary."""
-        if self.lp:
+        if self.tf_method == "lp":
             epochs = [i for i in range(self.epochs)]
+            return {
+                "conv1": epochs,
+                "block1": epochs,
+                "block2": epochs,
+                "block3": epochs,
+                "bn1": epochs,
+                "relu": epochs,
+            }
+        elif self.tf_method == "lp_ft":
+            epochs = [i for i in range(self.lp_epochs)]
             return {
                 "conv1": epochs,
                 "block1": epochs,
@@ -98,20 +114,25 @@ def main():
     parser.add_argument("-eps", "--epochs", default=10, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.001, type=float)
     parser.add_argument("-device", "--device", default="cpu")
-    parser.add_argument("-lp", "--lp", default=1, type=int)
+    parser.add_argument("-method", "--tf_method", default="lp", type=int)
     parser.add_argument("-eval", "--eval", default=0, type=int)
     parser.add_argument("-train", "--train", default=0, type=int)
     parser.add_argument("-evaleps", "--evaleps", default=None, type=int)
     parser.add_argument("-evalbs", "--evalbs", default=32, type=int)
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
+    parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
     args = parser.parse_args()
-    experiment_name = f"lp_bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_lp_{args.lp}"
+    if args.tf_method == "lp_ft":
+        experiment_name = f"bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_tf_method_{args.tf_method}_lpeps_{args.lp_epochs}"
+    else:
+        experiment_name = f"bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_tf_method_{args.tf_method}"
     experiment = LpExperiment(
         experiment_name,
         args.batch_size,
         args.epochs,
         args.learning_rate,
-        args.lp,
+        args.tf_method,
+        args.lp_epochs,
     )
 
     if args.train:
