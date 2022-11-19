@@ -114,7 +114,7 @@ def main():
     parser.add_argument("-eps", "--epochs", default=10, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.001, type=float)
     parser.add_argument("-device", "--device", default="cpu")
-    parser.add_argument("-method", "--tf_method", default="lp", type=int)
+    parser.add_argument("-method", "--tf_method", default="lp", type=str)
     parser.add_argument("-eval", "--eval", default=0, type=int)
     parser.add_argument("-train", "--train", default=0, type=int)
     parser.add_argument("-evaleps", "--evaleps", default=None, type=int)
