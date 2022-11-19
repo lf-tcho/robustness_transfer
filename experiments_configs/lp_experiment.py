@@ -73,13 +73,7 @@ class LpExperiment(Experiment):
 
     def transforms(self, train: bool = False):
         """Load transforms depending on training or evaluation dataset."""
-        transforms = []
-        if train:
-            transforms.append(RandomResizedCrop((32, 32), scale=(0.5, 1), ratio=(1, 1)))
-            transforms.append(RandomHorizontalFlip())
-            transforms.append(RandomVerticalFlip())
-        transforms.append(Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)))
-        return transforms
+        return [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
     def freeze(self):
         """Define freeze dictionary."""
