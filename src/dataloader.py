@@ -1,3 +1,4 @@
+import subprocess
 from math import ceil
 from pathlib import Path
 import torchvision.datasets as datasets
@@ -30,14 +31,14 @@ class WeatherDataset(Dataset):
         :param train: If True train set is return, else test set
         :param transform: Transfroms to apply to images
         """
-        self.download_weather_data()
+        self.download()
         self.transform = transform
         self.img_list = []
-        for cls, num_imgs in self.num_img_per_category.items():
+        for cat, num_imgs in self.num_img_per_category.items():
             split = ceil(num_imgs * self.split)
             start, stop = (0, split) if train else (split, num_imgs)
             for i in range(start, stop):
-                self.img_list.append(f"{cls}{i}")
+                self.img_list.append(f"{cat}{i}")
 
     def __len__(self):
         return len(self.img_list)
@@ -52,7 +53,7 @@ class WeatherDataset(Dataset):
         return img, label
 
     @classmethod
-    def download_weather_data(cls):
+    def download(cls):
         """Download weather dataset."""
         url = r"https://prod-dcd-datasets-cache-zipfiles.s3.eu-west-1.amazonaws.com/4drtyfjtfy-1.zip"
         image_count = len(glob.glob1(cls.dataset_folder, "*.jpg"))
@@ -68,6 +69,55 @@ class WeatherDataset(Dataset):
         copy_all_files(output_folder, cls.dataset_folder)
 
 
+class IntelImageDataset(Dataset):
+    """Intel image dataset."""
+    category2id = {"buildings": 0, "forest": 1, "glacier": 2, "mountain": 3, "sea": 4, "street": 5}
+    """Mapping from category name to label id."""
+    dataset_folder = Path(DATA_DIR) / "intel-image-classification"
+    """Folder to store images in."""
+
+    def __init__(self, train: bool = False, transform: List = None):
+        """Initilize dataset.
+
+        :param train: If True train set is return, else test set
+        :param transform: Transfroms to apply to images
+        """
+        self.download()
+        self.transform = transform
+        if train:
+            path_imgs = self.dataset_folder / "seg_train" / "seg_train"
+        else:
+            path_imgs = self.dataset_folder / "seg_test" / "seg_test"
+        self.img_list = sorted(list(path_imgs.glob('**/*.jpg')))
+
+    def __len__(self):
+        return len(self.img_list)
+
+    def __getitem__(self, idx):
+        img_path = self.img_list[idx]
+        img = read_image(str(img_path))
+        img_category = img_path.parent.name
+        label = self.category2id[img_category]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+    @classmethod
+    def download(cls):
+        """Download dataset."""
+        if cls.dataset_folder.exists():
+            print("Dataset already downloaded.")
+            return
+        subprocess.run(["kaggle", 
+                        "datasets", 
+                        "download", 
+                        "-d", 
+                        "puneet6060/intel-image-classification", 
+                        "-p", 
+                        str(Path(DATA_DIR))])
+        unzip(Path(DATA_DIR) / "intel-image-classification.zip", Path(DATA_DIR))
+
+
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     """Load pytorch dataset.
 
@@ -79,8 +129,10 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
         dataset = datasets.CIFAR10(root=DATA_DIR, train=train, download=True)
     if dataset_name == "cifar100":
         dataset = datasets.CIFAR100(root=DATA_DIR, train=train, download=True)
-    if dataset_name == "weather": 
+    if dataset_name == "weather":
         dataset = WeatherDataset(train=train)
+    if dataset_name == "intel_image":
+        dataset = IntelImageDataset(train=train)
     if size:
         indices = torch.arange(size)
         dataset = Subset(dataset, indices)

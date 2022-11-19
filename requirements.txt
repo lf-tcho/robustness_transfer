@@ -1,3 +1,4 @@
 git+https://github.com/RobustBench/robustbench.git@master#egg=robustbench
 foolbox
 tensorboard
+kaggle
