@@ -45,7 +45,7 @@ class WeatherDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.dataset_folder / f"{self.img_list[idx]}.jpg"
-        img = read_image(str(img_path)).permute(1,2,0).numpy()
+        img = read_image(str(img_path)).numpy()
         img_category = "".join([i for i in img_path.stem if not i.isdigit()])
         label = self.category2id[img_category]
         if self.transform:
@@ -95,7 +95,7 @@ class IntelImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.img_list[idx]
-        img = read_image(str(img_path)).permute(1,2,0).numpy()
+        img = read_image(str(img_path)).numpy()
         img_category = img_path.parent.name
         label = self.category2id[img_category]
         if self.transform:
