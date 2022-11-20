@@ -154,7 +154,8 @@ def main():
                         "eps": args.epochs,
                         "lr": args.learning_rate,
                         "tf_method": args.tf_method,
-                        "lrs": args.lr_scheduler}
+                        "lrs": args.lr_scheduler,
+                        "ds": args.dataset_name}
     if args.tf_method == "lp_ft":
         experiment_args["lpeps"] = args.lp_epochs
     experiment = LpExperiment(
