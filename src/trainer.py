@@ -75,7 +75,7 @@ class Trainer:
                 optimizer.step()
                 writer.add_scalar("Loss/train", loss.item(), iteration)
             if self.lr_scheduler:
-                writer.add_scalar("Parameter/LR", self.lr_scheduler.get_last_lr(), iteration)
+                writer.add_scalar("Parameter/LR", np.array(self.lr_scheduler.get_last_lr()), iteration)
                 self.lr_scheduler.step()
             else:
                 writer.add_scalar("Parameter/LR", optimizer.param_groups[0]['lr'], iteration)
