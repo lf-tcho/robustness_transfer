@@ -82,7 +82,7 @@ class LpExperiment(Experiment):
             self.experiment_name,
             freeze=self.freeze(),
             device=device,
-            lr_scheduler=self.get_lr_scheduler(optimizer)
+            lr_scheduler=self.get_lr_scheduler(optimizer, len(train_dataloader))
         )
         trainer.train()
 
