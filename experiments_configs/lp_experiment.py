@@ -57,13 +57,13 @@ class LpExperiment(Experiment):
         model.fc = torch.nn.Linear(640, 10)
         return model
 
-    def get_lr_scheduler(self, optimizer, dataset_len):
+    def get_lr_scheduler(self, optimizer, len_dataloader):
         """Get learning rate scheduler based of name for lr scheduler.
 
         :param optimizer: Optimizer used for training.
         """
         if self.lr_scheduler == "cosine":
-            return CosineAnnealingLR(optimizer, T_max=ceil(dataset_len/self.batch_size) * self.epochs)
+            return CosineAnnealingLR(optimizer, T_max=len_dataloader * self.epochs)
         else:
             return
 
@@ -82,7 +82,7 @@ class LpExperiment(Experiment):
             self.experiment_name,
             freeze=self.freeze(),
             device=device,
-            lr_scheduler=self.get_lr_scheduler(optimizer, len(train_dataloader))
+            lr_scheduler=self.get_lr_scheduler(optimizer, len(train_dataloader)
         )
         trainer.train()
 
@@ -96,8 +96,8 @@ class LpExperiment(Experiment):
             transforms=self.transforms(),
         )
         eval_dataloader = get_dataloader(
-            self.dataset_name, 
-            False, 
+            self.dataset_name,
+            False,
             batch_size=self.batch_size, 
             transforms=self.transforms()
         )
