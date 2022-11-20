@@ -1,4 +1,5 @@
 import argparse
+from math import ceil
 from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
@@ -8,6 +9,7 @@ from src.trainer import Trainer
 from src.experiment import Experiment
 import torch
 from torchvision.transforms import Normalize
+from src.utils import get_experiment_name
 
 
 class LpExperiment(Experiment):
@@ -22,6 +24,7 @@ class LpExperiment(Experiment):
         tf_method: str = "lp",
         lp_epochs: int = 0,
         lr_scheduler: str = None,
+        dataset_name: str = "cifar10"
     ):
         """Initilize LpExperiment.
 
@@ -32,6 +35,7 @@ class LpExperiment(Experiment):
         :param tf_method: Transfer learning method ("lp", "lp_ft", None)
         :param lp_epochs: Number of epochs of linear probing before full fine-tuning. Only used for method lp_ft
         :param lr_scheduler: Learning rate scheduler used for training
+        :param dataset_name: Name of dataset used for training and evaluation
         """
         super().__init__(experiment_name)
         self.batch_size = batch_size
@@ -40,6 +44,7 @@ class LpExperiment(Experiment):
         self.tf_method = tf_method
         self.lp_epochs = lp_epochs
         self.lr_scheduler = lr_scheduler
+        self.dataset_name = dataset_name
 
     def get_model(self):
         """Get model."""
@@ -52,29 +57,20 @@ class LpExperiment(Experiment):
         model.fc = torch.nn.Linear(640, 10)
         return model
 
-    def get_lr_scheduler(self, optimizer):
+    def get_lr_scheduler(self, optimizer, dataset_len):
         """Get learning rate scheduler based of name for lr scheduler.
 
         :param optimizer: Optimizer used for training.
         """
         if self.lr_scheduler == "cosine":
-            return CosineAnnealingLR(optimizer, T_max=self.epochs)
+            return CosineAnnealingLR(optimizer, T_max=ceil(dataset_len/self.batch_size) * self.epochs)
         else:
             return
 
     def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
         model = self.get_model()
-        train_dataloader = get_dataloader(
-            "cifar10",
-            True,
-            batch_size=self.batch_size,
-            shuffle=True,
-            transforms=self.transforms(True),
-        )
-        eval_dataloader = get_dataloader(
-            "cifar10", False, batch_size=self.batch_size, transforms=self.transforms()
-        )
+        train_dataloader, eval_dataloader = self.get_dataloaders()
         optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
         trainer = Trainer(
             model,
@@ -90,7 +86,24 @@ class LpExperiment(Experiment):
         )
         trainer.train()
 
-    def transforms(self, train: bool = False):
+    def get_dataloaders(self):
+        """Get train and eval dataloader."""
+        train_dataloader = get_dataloader(
+            self.dataset_name,
+            True,
+            batch_size=self.batch_size,
+            shuffle=True,
+            transforms=self.transforms(),
+        )
+        eval_dataloader = get_dataloader(
+            self.dataset_name, 
+            False, 
+            batch_size=self.batch_size, 
+            transforms=self.transforms()
+        )
+        return train_dataloader, eval_dataloader
+
+    def transforms(self):
         """Load transforms depending on training or evaluation dataset."""
         return [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
@@ -135,18 +148,24 @@ def main():
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
     parser.add_argument("-lr_scheduler", "--lr_scheduler", default=None, type=str)
+    parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
     args = parser.parse_args()
-    experiment_name = f"bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_tf_method_{args.tf_method}_lrs_{args.lr_scheduler}"
+    experiment_args = {"bs": args.batch_size,
+                        "eps": args.epochs,
+                        "lr": args.learning_rate,
+                        "tf_method": args.tf_method,
+                        "lrs": args.lr_scheduler}
     if args.tf_method == "lp_ft":
-        experiment_name += f"_lpeps_{args.lp_epochs}"
+        experiment_args["lpeps"] = args.lp_epochs
     experiment = LpExperiment(
-        experiment_name,
+        get_experiment_name(experiment_args),
         args.batch_size,
         args.epochs,
         args.learning_rate,
         args.tf_method,
         args.lp_epochs,
         args.lr_scheduler,
+        args.dataset_name
     )
 
     if args.train:

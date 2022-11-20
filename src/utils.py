@@ -39,3 +39,12 @@ def copy_all_files(source, destination):
     """
     for src_file in Path(source).glob("*.*"):
         shutil.copy(src_file, destination)
+
+
+def get_experiment_name(arg_dict):
+    """Create experiment name.
+
+    :param arg_dict: Dictionary of argument names and respective values
+    """
+    return "_".join([f"{key}_{arg}" for key, arg in sorted(list(arg_dict.items()))])
+    
