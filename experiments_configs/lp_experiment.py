@@ -8,7 +8,7 @@ import torch.nn as nn
 from src.trainer import Trainer
 from src.experiment import Experiment
 import torch
-from torchvision.transforms import Normalize
+from torchvision.transforms import Normalize, Resize
 from src.utils import get_experiment_name
 
 
@@ -24,7 +24,8 @@ class LpExperiment(Experiment):
         tf_method: str = "lp",
         lp_epochs: int = 0,
         lr_scheduler: str = None,
-        dataset_name: str = "cifar10"
+        dataset_name: str = "cifar10",
+        num_categories: int = 10,
     ):
         """Initilize LpExperiment.
 
@@ -45,6 +46,7 @@ class LpExperiment(Experiment):
         self.lp_epochs = lp_epochs
         self.lr_scheduler = lr_scheduler
         self.dataset_name = dataset_name
+        self.num_categories = num_categories
 
     def get_model(self):
         """Get model."""
@@ -54,7 +56,7 @@ class LpExperiment(Experiment):
             threat_model="Linf",
         )
         # Change output size of model to 10 classes
-        model.fc = torch.nn.Linear(640, 10)
+        model.fc = torch.nn.Linear(640, self.num_categories)
         return model
 
     def get_lr_scheduler(self, optimizer, len_dataloader):
@@ -105,7 +107,7 @@ class LpExperiment(Experiment):
 
     def transforms(self):
         """Load transforms depending on training or evaluation dataset."""
-        return [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+        return [Resize((32, 32)), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
     def freeze(self):
         """Define freeze dictionary."""
@@ -148,7 +150,8 @@ def main():
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
     parser.add_argument("-lr_scheduler", "--lr_scheduler", default=None, type=str)
-    parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
+    parser.add_argument("-ds", "--dataset_name", default="intel_image", type=str)
+    parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
     args = parser.parse_args()
     experiment_args = {"bs": args.batch_size,
                         "eps": args.epochs,
@@ -166,7 +169,8 @@ def main():
         args.tf_method,
         args.lp_epochs,
         args.lr_scheduler,
-        args.dataset_name
+        args.dataset_name,
+        args.num_categories
     )
 
     if args.train:
