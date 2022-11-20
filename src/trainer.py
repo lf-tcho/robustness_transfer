@@ -26,7 +26,22 @@ class Trainer:
         experiment_name: str = "test",
         device: torch.device = torch.device("cpu"),
         freeze: dict = None,
+        lr_scheduler = None,
     ):
+        """Initilize Trainer.
+
+        :param model: Model used for training
+        :param train_dataloader: Training dataloader
+        :param eval_dataloader: Evaluation dataloader
+        :param loss: Loss function
+        :param epochs: Number of training epochs
+        :param optimizer: Optimizer for training
+        :param experiment_name: Experiment name used for logging
+        :param device: Device used for running Trainer
+        :param freeze: Dictionary with model modules to freeze
+        :param lr_scheduler: Learning rate scheduler. Note: Optimizer must be 
+            passed to learning rate scheduler before passing it to Trainer.
+        """
         self.device = device
         self.model = model.to(self.device)
         self.train_dataloader = train_dataloader
@@ -36,6 +51,7 @@ class Trainer:
         self.optimizer = optimizer
         self.experiment_folder = Path("./experiments") / experiment_name
         self.freeze = freeze
+        self.lr_scheduler = lr_scheduler
 
     def train(self):
         """Train network."""
@@ -58,6 +74,8 @@ class Trainer:
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar("Loss/train", loss.item(), iteration)
+            if self.lr_scheduler:
+                self.lr_scheduler.step()
 
             # Evaluate model
             self.model.eval()

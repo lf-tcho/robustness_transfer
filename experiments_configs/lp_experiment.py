@@ -2,6 +2,7 @@ import argparse
 from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
+from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn as nn
 from src.trainer import Trainer
 from src.experiment import Experiment
@@ -20,6 +21,7 @@ class LpExperiment(Experiment):
         learning_rate: float = 0.001,
         tf_method: str = "lp",
         lp_epochs: int = 0,
+        lr_scheduler: str = None,
     ):
         """Initilize LpExperiment.
 
@@ -29,6 +31,7 @@ class LpExperiment(Experiment):
         :param learning_rate: Learning rate for training
         :param tf_method: Transfer learning method ("lp", "lp_ft", None)
         :param lp_epochs: Number of epochs of linear probing before full fine-tuning. Only used for method lp_ft
+        :param lr_scheduler: Learning rate scheduler used for training
         """
         super().__init__(experiment_name)
         self.batch_size = batch_size
@@ -36,6 +39,7 @@ class LpExperiment(Experiment):
         self.learning_rate = learning_rate
         self.tf_method = tf_method
         self.lp_epochs = lp_epochs
+        self.lr_scheduler = lr_scheduler
 
     def get_model(self):
         """Get model."""
@@ -48,10 +52,19 @@ class LpExperiment(Experiment):
         model.fc = torch.nn.Linear(640, 10)
         return model
 
+    def get_lr_scheduler(self, optimizer):
+        """Get learning rate scheduler based of name for lr scheduler.
+
+        :param optimizer: Optimizer used for training.
+        """
+        if self.lr_scheduler == "cosine":
+            return CosineAnnealingLR(optimizer, T_max=self.epochs)
+        else:
+            return
+
     def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
         model = self.get_model()
-
         train_dataloader = get_dataloader(
             "cifar10",
             True,
@@ -62,18 +75,18 @@ class LpExperiment(Experiment):
         eval_dataloader = get_dataloader(
             "cifar10", False, batch_size=self.batch_size, transforms=self.transforms()
         )
-        loss = nn.CrossEntropyLoss()
         optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
         trainer = Trainer(
             model,
             train_dataloader,
             eval_dataloader,
-            loss,
+            nn.CrossEntropyLoss(),
             self.epochs,
             optimizer,
             self.experiment_name,
             freeze=self.freeze(),
             device=device,
+            lr_scheduler=self.get_lr_scheduler(optimizer)
         )
         trainer.train()
 
@@ -121,11 +134,11 @@ def main():
     parser.add_argument("-evalbs", "--evalbs", default=32, type=int)
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
+    parser.add_argument("-lr_scheduler", "--lr_scheduler", default=None, type=str)
     args = parser.parse_args()
+    experiment_name = f"bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_tf_method_{args.tf_method}_lrs_{args.lr_scheduler}"
     if args.tf_method == "lp_ft":
-        experiment_name = f"bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_tf_method_{args.tf_method}_lpeps_{args.lp_epochs}"
-    else:
-        experiment_name = f"bs_{args.batch_size}_eps_{args.epochs}_lr_{args.learning_rate}_tf_method_{args.tf_method}"
+        experiment_name += f"_lpeps_{args.lp_epochs}"
     experiment = LpExperiment(
         experiment_name,
         args.batch_size,
