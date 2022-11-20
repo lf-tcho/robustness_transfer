@@ -146,6 +146,7 @@ def main():
         args.learning_rate,
         args.tf_method,
         args.lp_epochs,
+        args.lr_scheduler,
     )
 
     if args.train:
