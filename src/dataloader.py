@@ -119,7 +119,7 @@ class IntelImageDataset(Dataset):
                         "puneet6060/intel-image-classification", 
                         "-p", 
                         str(Path(DATA_DIR))])
-        unzip(Path(DATA_DIR) / "intel-image-classification.zip", Path(DATA_DIR))
+        unzip(Path(DATA_DIR) / "intel-image-classification.zip", cls.dataset_folder)
 
 
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
