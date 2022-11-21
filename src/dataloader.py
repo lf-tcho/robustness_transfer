@@ -49,7 +49,7 @@ class WeatherDataset(Dataset):
         img_path = self.dataset_folder / f"{self.img_list[idx]}.jpg"
         if not img_path.exists():
             img_path = img_path.with_suffix('.jpeg')
-        img = np.asarray(Image.open(str(img_path)).convert("RGB"))
+        img = np.array(np.asarray(Image.open(str(img_path)).convert("RGB")))
         img_category = "".join([i for i in img_path.stem if not i.isdigit()])
         label = self.category2id[img_category]
         if self.transform:
