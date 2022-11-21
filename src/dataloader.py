@@ -10,6 +10,8 @@ from src.utils import download_url, unzip, copy_all_files
 import glob
 from torchvision.io import read_image
 from torch.utils.data import Dataset
+from PIL import Image
+import numpy as np
 
 DATA_DIR = "./data"
 
@@ -36,7 +38,7 @@ class WeatherDataset(Dataset):
         self.img_list = []
         for cat, num_imgs in self.num_img_per_category.items():
             split = ceil(num_imgs * self.split)
-            start, stop = (0, split) if train else (split, num_imgs)
+            start, stop = (1, split) if train else (split, num_imgs)
             for i in range(start, stop):
                 self.img_list.append(f"{cat}{i}")
 
@@ -45,7 +47,9 @@ class WeatherDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.dataset_folder / f"{self.img_list[idx]}.jpg"
-        img = read_image(str(img_path)).numpy()
+        if not img_path.exists():
+            img_path = img_path.with_suffix('.jpeg')
+        img = np.asarray(Image.open(str(img_path)).convert("RGB"))
         img_category = "".join([i for i in img_path.stem if not i.isdigit()])
         label = self.category2id[img_category]
         if self.transform:
@@ -95,7 +99,7 @@ class IntelImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.img_list[idx]
-        img = read_image(str(img_path)).numpy()
+        img = read_image(str(img_path)).permute(1,2,0).numpy()
         img_category = img_path.parent.name
         label = self.category2id[img_category]
         if self.transform:
