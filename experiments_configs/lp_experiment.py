@@ -179,13 +179,12 @@ def main():
     if args.eval:
         from src.evaluator import Evaluator
 
-        transforms = [Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
         dataloader = get_dataloader(
             "cifar10",
             False,
             args.evalbs,
             args.evaldssize,
-            transforms,
+            experiment.transforms(),
         )
         evaluator = Evaluator(
             experiment,
