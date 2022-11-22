@@ -100,7 +100,7 @@ class LpExperiment(Experiment):
         eval_dataloader = get_dataloader(
             self.dataset_name,
             False,
-            batch_size=self.batch_size, 
+            batch_size=self.batch_size,
             transforms=self.transforms()
         )
         return train_dataloader, eval_dataloader
@@ -180,7 +180,7 @@ def main():
         from src.evaluator import Evaluator
 
         dataloader = get_dataloader(
-            "cifar10",
+            args.dataset_name,
             False,
             args.evalbs,
             args.evaldssize,
