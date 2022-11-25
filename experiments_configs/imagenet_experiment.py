@@ -166,8 +166,6 @@ def main():
         args.num_categories,
     )
 
-    model = experiment.get_model()
-
     if args.train:
         experiment.run(torch.device(args.device))
 
