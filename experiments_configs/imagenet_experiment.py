@@ -114,7 +114,7 @@ class ImageNetExperiment(Experiment):
         """Define freeze dictionary."""
         layers = ["model.conv1", "model.bn1", "model.relu", "model.maxpool", 
                     "model.layer1", "model.layer2", "model.layer3", "model.layer4", 
-                    "avgpool"]
+                    "model.avgpool"]
         if self.tf_method == "lp":
             epochs = [i for i in range(self.epochs)]
             return {layer: epochs for layer in layers}
