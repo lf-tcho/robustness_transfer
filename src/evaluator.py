@@ -43,7 +43,7 @@ class Evaluator:
         robust_accuracy = robust_accuracy / len(self.dataloader.dataset)
         print(f"Robust accuracy: {robust_accuracy}")
         output = {"accuracy": accuracy, "robust_accuracy": robust_accuracy}
-        with open(self.experiment_folder / "metrics.json", "w") as file:
+        with open(self.experiment_folder / f"metrics_{CKPT_NAME}{self.epoch}.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self):
