@@ -11,6 +11,7 @@ import torch
 from torchvision.transforms import Normalize, Resize
 from src.utils import get_experiment_name
 from src.transforms import SquarePad
+from src.evaluator import Evaluator
 
 
 class ImageNetExperiment(Experiment):
