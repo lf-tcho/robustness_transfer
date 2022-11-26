@@ -131,6 +131,36 @@ class LpExperiment(Experiment):
                 "bn1": epochs,
                 "relu": epochs,
             }
+        elif self.tf_method == "block1":
+            epochs = [i for i in range(self.epochs)]
+            return {
+                "conv1": epochs,
+                "block2": epochs,
+                "block3": epochs,
+                "bn1": epochs,
+                "relu": epochs,
+                "fc": epochs,
+            }
+        elif self.tf_method == "block2":
+            epochs = [i for i in range(self.epochs)]
+            return {
+                "conv1": epochs,
+                "block1": epochs,
+                "block3": epochs,
+                "bn1": epochs,
+                "relu": epochs,
+                "fc": epochs,
+            }
+        elif self.tf_method == "block3":
+            epochs = [i for i in range(self.epochs)]
+            return {
+                "conv1": epochs,
+                "block1": epochs,
+                "block2": epochs,
+                "bn1": epochs,
+                "relu": epochs,
+                "fc": epochs,
+            }
         else:
             return None
 
