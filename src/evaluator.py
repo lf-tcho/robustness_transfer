@@ -53,7 +53,7 @@ class Evaluator:
         If self.epoch is given load respective checkpoint.
         """
         model = self.experiment.get_model().to(self.device)
-        if self.epoch:
+        if self.epoch or self.epoch == 0:
             ckpt = self.experiment_folder / f"{CKPT_NAME}_{self.epoch}.pth"
             model.load_state_dict(torch.load(ckpt, map_location=self.device))
             print(f"Loaded checkpoint {ckpt}")
