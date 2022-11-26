@@ -1,5 +1,6 @@
 models/
 data/
 experiments/
+unused_experiments/
 *.pyc
 launch.json
