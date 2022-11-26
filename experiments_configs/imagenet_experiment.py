@@ -108,7 +108,7 @@ class ImageNetExperiment(Experiment):
 
     def transforms(self):
         """Load transforms depending on training or evaluation dataset."""
-        return [SquarePad(), Resize((256, 256))]
+        return [Resize((256, 256))]
 
     def freeze(self):
         """Define freeze dictionary."""
