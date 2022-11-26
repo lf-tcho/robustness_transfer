@@ -143,7 +143,7 @@ def main():
     parser.add_argument("-lr_scheduler", "--lr_scheduler", default=None, type=str)
     parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
     parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
-    parser.add_argument("-eval_all", "--eval_all", default=False, type=bool)
+    parser.add_argument("-eval_all", "--eval_all", default=0, type=int)
     args = parser.parse_args()
     experiment_args = {
         "_": "imagenet",
