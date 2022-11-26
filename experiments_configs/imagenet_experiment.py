@@ -170,8 +170,6 @@ def main():
         experiment.run(torch.device(args.device))
 
     if args.eval:
-        from src.evaluator import Evaluator
-
         dataloader = get_dataloader(
             args.dataset_name,
             False,
@@ -179,13 +177,25 @@ def main():
             args.evaldssize,
             experiment.transforms(),
         )
-        evaluator = Evaluator(
-            experiment,
-            dataloader,
-            epoch=args.evaleps,
-            device=torch.device(args.device),
-        )
-        evaluator.eval()
+        # If args.eval_all is True, evaluation is run for all epochs
+        # If args.eval_all is False, evaluation is run only for specified epoch
+        if args.eval_all:
+            for i in range(args.epochs):
+                evaluator = Evaluator(
+                    experiment,
+                    dataloader,
+                    epoch=i,
+                    device=torch.device(args.device),
+                )
+                evaluator.eval()
+        else: 
+            evaluator = Evaluator(
+                experiment,
+                dataloader,
+                epoch=args.evaleps,
+                device=torch.device(args.device),
+            )
+            evaluator.eval()
 
 
 if __name__ == "__main__":

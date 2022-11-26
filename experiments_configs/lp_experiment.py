@@ -10,7 +10,7 @@ from src.experiment import Experiment
 import torch
 from torchvision.transforms import Normalize, Resize
 from src.utils import get_experiment_name
-
+from src.evaluator import Evaluator
 
 class LpExperiment(Experiment):
     """Experiment for linear probing."""
@@ -182,6 +182,7 @@ def main():
     parser.add_argument("-lr_scheduler", "--lr_scheduler", default=None, type=str)
     parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
     parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
+    parser.add_argument("-eval_all", "--eval_all", default=False, type=bool)
     args = parser.parse_args()
     experiment_args = {"bs": args.batch_size,
                         "eps": args.epochs,
@@ -207,8 +208,6 @@ def main():
         experiment.run(torch.device(args.device))
 
     if args.eval:
-        from src.evaluator import Evaluator
-
         dataloader = get_dataloader(
             args.dataset_name,
             False,
@@ -216,13 +215,25 @@ def main():
             args.evaldssize,
             experiment.transforms(),
         )
-        evaluator = Evaluator(
-            experiment,
-            dataloader,
-            epoch=args.evaleps,
-            device=torch.device(args.device),
-        )
-        evaluator.eval()
+        # If args.eval_all is True, evaluation is run for all epochs
+        # If args.eval_all is False, evaluation is run only for specified epoch
+        if args.eval_all:
+            for i in range(args.epochs):
+                evaluator = Evaluator(
+                    experiment,
+                    dataloader,
+                    epoch=i,
+                    device=torch.device(args.device),
+                )
+                evaluator.eval()
+        else: 
+            evaluator = Evaluator(
+                experiment,
+                dataloader,
+                epoch=args.evaleps,
+                device=torch.device(args.device),
+            )
+            evaluator.eval()
 
 
 if __name__ == "__main__":
