@@ -18,12 +18,14 @@ class Evaluator:
         dataloader,
         epoch: int = None,
         device: torch.device = torch.device("cpu"),
+        epsilon = [8 / 255],
     ) -> None:
         self.experiment = experiment
         self.epoch = epoch
         self.dataloader = dataloader
         self.device = device
         self.experiment_folder = Path("./experiments") / self.experiment.experiment_name
+        self.epsilon = epsilon
 
     def eval(self):
         """Run evaluation for an experiment."""
@@ -36,7 +38,7 @@ class Evaluator:
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             batch_size = inputs.shape[0]
             accuracy += fb.utils.accuracy(fmodel, inputs, labels) * batch_size
-            _, _, success = l_inf_pgd(fmodel, inputs, labels, epsilons=[8 / 255])
+            _, _, success = l_inf_pgd(fmodel, inputs, labels, epsilons=self.epsilon)
             robust_accuracy += batch_size - success.float().sum().item()
         accuracy = accuracy / len(self.dataloader.dataset)
         print(f"Accurarcy: {accuracy}")

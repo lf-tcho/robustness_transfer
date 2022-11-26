@@ -144,6 +144,7 @@ def main():
     parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
     parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
     parser.add_argument("-eval_all", "--eval_all", default=0, type=int)
+    parser.add_argument("-epsilon", "--epsilon", default=8/255, type=float)
     args = parser.parse_args()
     experiment_args = {
         "_": "imagenet",
@@ -188,6 +189,7 @@ def main():
                     dataloader,
                     epoch=i,
                     device=torch.device(args.device),
+                    epsilon=[args.epsilon]
                 )
                 evaluator.eval()
         else: 
