@@ -133,6 +133,8 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
         dataset = datasets.CIFAR10(root=DATA_DIR, train=train, download=True)
     if dataset_name == "cifar100":
         dataset = datasets.CIFAR100(root=DATA_DIR, train=train, download=True)
+    if dataset_name == "fashion":
+        dataset = datasets.FashionMNIST(root=DATA_DIR, train=train, download=True)
     if dataset_name == "weather":
         dataset = WeatherDataset(train=train)
     if dataset_name == "intel_image":
