@@ -26,7 +26,7 @@ class Trainer:
         experiment_name: str = "test",
         device: torch.device = torch.device("cpu"),
         freeze: dict = None,
-        lr_scheduler = None,
+        lr_scheduler=None,
     ):
         """Initilize Trainer.
 
@@ -74,12 +74,20 @@ class Trainer:
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar("Loss/train", loss.item(), iteration)
-                writer.add_scalar("Accuracy/train", metrics["accuracy"].item(), iteration)
+                writer.add_scalar(
+                    "Accuracy/train", metrics["accuracy"].item(), iteration
+                )
                 if self.lr_scheduler:
-                    writer.add_scalar("Parameter/LR", np.array(self.lr_scheduler.get_last_lr()), iteration)
+                    writer.add_scalar(
+                        "Parameter/LR",
+                        np.array(self.lr_scheduler.get_last_lr()),
+                        iteration,
+                    )
                     self.lr_scheduler.step()
                 else:
-                    writer.add_scalar("Parameter/LR", optimizer.param_groups[0]['lr'], iteration)
+                    writer.add_scalar(
+                        "Parameter/LR", optimizer.param_groups[0]["lr"], iteration
+                    )
 
             # Evaluate model
             self.model.eval()
@@ -116,7 +124,10 @@ class Trainer:
 
     def load_model(self):
         """Load latest model and get epoch."""
-        ckpts = sorted(list(self.experiment_folder.glob("*.pth")))
+        ckpts = sorted(
+            list(self.experiment_folder.glob("*.pth")),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        )
         if ckpts:
             latest_epoch = int(ckpts[-1].stem.split("_")[-1])
             ckpt = f"{CKPT_NAME}_{latest_epoch}.pth"
@@ -159,7 +170,7 @@ class TrainerLwF(Trainer):
         experiment_name: str = "test",
         device: torch.device = torch.device("cpu"),
         freeze: dict = None,
-        lr_scheduler = None,
+        lr_scheduler=None,
     ):
         """Initilize Trainer.
 
@@ -209,12 +220,20 @@ class TrainerLwF(Trainer):
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar("Loss/train", loss.item(), iteration)
-                writer.add_scalar("Accuracy/train", metrics["accuracy"].item(), iteration)
+                writer.add_scalar(
+                    "Accuracy/train", metrics["accuracy"].item(), iteration
+                )
                 if self.lr_scheduler:
-                    writer.add_scalar("Parameter/LR", np.array(self.lr_scheduler.get_last_lr()), iteration)
+                    writer.add_scalar(
+                        "Parameter/LR",
+                        np.array(self.lr_scheduler.get_last_lr()),
+                        iteration,
+                    )
                     self.lr_scheduler.step()
                 else:
-                    writer.add_scalar("Parameter/LR", optimizer.param_groups[0]['lr'], iteration)
+                    writer.add_scalar(
+                        "Parameter/LR", optimizer.param_groups[0]["lr"], iteration
+                    )
 
             # Evaluate model
             self.model.eval()
@@ -238,7 +257,9 @@ class TrainerLwF(Trainer):
         metrics = {}
         model_output = self.model(inputs.to(self.device))
         teacher_output = self.teacher_model(inputs.to(self.device))
-        metrics["loss"] = self.loss(model_output, teacher_output, labels.to(self.device))
+        metrics["loss"] = self.loss(
+            model_output, teacher_output, labels.to(self.device)
+        )
         _, indices = model_output[0].max(dim=1)
         metrics["accuracy"] = torch.sum(indices == labels) / inputs.shape[0]
         return metrics
