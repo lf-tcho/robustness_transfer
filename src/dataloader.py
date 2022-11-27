@@ -125,7 +125,7 @@ class Fashion(datasets.FashionMNIST):
 
     def __getitem__(self, index: int):
         img, label = super().__getitem__(index)
-        return img.convert("RGB"), label
+        return Image.fromarray(np.array(img.convert("RGB"))), label
 
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     """Load pytorch dataset.
