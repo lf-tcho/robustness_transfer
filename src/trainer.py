@@ -8,6 +8,7 @@ from pathlib import Path
 import numpy as np
 from typing import List
 import operator
+import torch.nn as nn
 
 CKPT_NAME = "ckpt"
 
@@ -220,6 +221,9 @@ class TrainerLwF(Trainer):
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar("Loss/train", loss.item(), iteration)
+                writer.add_scalar("Accuracy/train", metrics["accuracy"].item(), iteration)
+                writer.add_scalar("cross_entropy/train", metrics["cross_entropy"].item(), iteration)
+                writer.add_scalar("feature_difference/train", metrics["feature_difference"].item(), iteration)
                 writer.add_scalar(
                     "Accuracy/train", metrics["accuracy"].item(), iteration
                 )
@@ -260,6 +264,21 @@ class TrainerLwF(Trainer):
         metrics["loss"] = self.loss(
             model_output, teacher_output, labels.to(self.device)
         )
+        metrics["loss"] = self.loss(model_output, teacher_output, labels.to(self.device))
+        metrics["cross_entropy"] = nn.CrossEntropyLoss()(model_output[0], labels.to(self.device))
+        metrics["feature_difference"] = torch.mean(torch.norm(model_output[1]-teacher_output[1], dim=1))
         _, indices = model_output[0].max(dim=1)
         metrics["accuracy"] = torch.sum(indices == labels) / inputs.shape[0]
         return metrics
+
+    def load_model(self):
+        """Load latest model and get epoch."""
+        ckpts = sorted(list(self.experiment_folder.glob("*.pth")))
+        if ckpts:
+            latest_epoch = int(ckpts[-1].stem.split("_")[-1])
+            ckpt = f"{CKPT_NAME}_{latest_epoch}.pth"
+            self.model.load_state_dict(torch.load(self.experiment_folder / ckpt))
+            print(f"Model checkpoint {ckpt} loaded.")
+            return latest_epoch
+        else:
+            return -1

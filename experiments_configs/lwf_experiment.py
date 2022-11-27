@@ -20,7 +20,7 @@ import os
 
 
 
-class LpRegExperiment(Experiment):
+class LwfExperiment(Experiment):
     """Experiment for linear probing."""
 
     def __init__(
@@ -58,18 +58,18 @@ class LpRegExperiment(Experiment):
         self.num_categories = num_categories
         self.reg_rate = regularization_rate
 
-    # def get_model(self):
-    #     """Get model."""
-    #     model = load_model(
-    #         model_name="Addepalli2022Efficient_WRN_34_10",
-    #         dataset="cifar100",
-    #         threat_model="Linf",
-    #     )
-    #     # Change output size of model to 10 classes
-    #     model.fc = torch.nn.Linear(640, self.num_categories)
-    #     return model
-
     def get_model(self):
+        """Get model."""
+        model = load_model(
+            model_name="Addepalli2022Efficient_WRN_34_10",
+            dataset="cifar100",
+            threat_model="Linf",
+        )
+        # Change output size of model to 10 classes
+        model.fc = torch.nn.Linear(640, self.num_categories)
+        return model
+
+    def get_model_train(self):
         """Get model."""
         model_name = "Addepalli2022Efficient_WRN_34_10"
         dataset = "cifar100"
@@ -118,7 +118,7 @@ class LpRegExperiment(Experiment):
 
     def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
-        model = self.get_model()
+        model = self.get_model_train()
         train_dataloader, eval_dataloader = self.get_dataloaders()
         optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
         trainer = TrainerLwF(
@@ -137,7 +137,7 @@ class LpRegExperiment(Experiment):
 
     def custom_loss(self, model_output, teacher_output, label):
         return nn.CrossEntropyLoss()(model_output[0], label) + self.reg_rate * \
-               torch.norm(model_output[1]-teacher_output[1])
+               torch.mean(torch.norm(model_output[1]-teacher_output[1], dim=1))
 
     def get_dataloaders(self):
         """Get train and eval dataloader."""
@@ -192,12 +192,12 @@ def main():
     parser.add_argument("-bs", "--batch_size", default=128, type=int)
     parser.add_argument("-eps", "--epochs", default=10, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.01, type=float)
-    parser.add_argument("-lwf", "--lwf_parameter", default=0.1, type=float)
+    parser.add_argument("-lwf", "--lwf_parameter", default=0.01, type=float)
     parser.add_argument("-device", "--device", default="cuda")
-    parser.add_argument("-method", "--tf_method", default="lp", type=str)
+    parser.add_argument("-method", "--tf_method", default="ft", type=str)
     parser.add_argument("-eval", "--eval", default=0, type=int)
     parser.add_argument("-train", "--train", default=1, type=int)
-    parser.add_argument("-evaleps", "--evaleps", default=19, type=int)
+    parser.add_argument("-evaleps", "--evaleps", default=3, type=int)
     parser.add_argument("-evalbs", "--evalbs", default=32, type=int)
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
@@ -216,7 +216,7 @@ def main():
     }
     if args.tf_method == "lp_ft":
         experiment_args["lpeps"] = args.lp_epochs
-    experiment = LpRegExperiment(
+    experiment = LwfExperiment(
         get_experiment_name(experiment_args),
         args.batch_size,
         args.epochs,
