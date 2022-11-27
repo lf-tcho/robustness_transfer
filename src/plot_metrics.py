@@ -12,20 +12,20 @@ def plot_metrics(experiment_path: Path):
     metric_files = sorted(list(experiment_path.glob("*.json")))
     accuracy = []
     robust_accuracy = []
-    epochs = []
     for metric_file in metric_files:
         num = ''.join(i for i in metric_file.stem if i.isdigit())
         if len(num) > 0:
             num = int(num)
             with open(metric_file, "r") as file:
                 metrics = json.load(file)
-            accuracy.append(metrics["accuracy"])
-            robust_accuracy.append(metrics["robust_accuracy"])
-            epochs.append(num)
+            accuracy.append((num, metrics["accuracy"]))
+            robust_accuracy.append((num, metrics["robust_accuracy"]))
     fig, ax1 = plt.subplots()
     ax2 = ax1.twinx()
-    ax1.plot(epochs, accuracy, 'g-')
-    ax2.plot(epochs, robust_accuracy, 'b-')
+    accuracy = sorted(accuracy)
+    robust_accuracy = sorted(robust_accuracy)
+    ax1.plot([i[0] for i in accuracy], [i[1] for i in accuracy], 'g-')
+    ax2.plot([i[0] for i in robust_accuracy], [i[1] for i in robust_accuracy], 'b-')
 
     ax1.set_xlabel('Epochs')
     ax1.set_ylabel('Accuracy', color='g')
