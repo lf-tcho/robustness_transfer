@@ -121,6 +121,11 @@ class IntelImageDataset(Dataset):
                         str(Path(DATA_DIR))])
         unzip(Path(DATA_DIR) / "intel-image-classification.zip", cls.dataset_folder)
 
+class Fashion(datasets.FashionMNIST):
+
+    def __getitem__(self, index: int):
+        img, label = super().__getitem__(index)
+        return img.convert("RGB"), label
 
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     """Load pytorch dataset.
@@ -134,7 +139,7 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     if dataset_name == "cifar100":
         dataset = datasets.CIFAR100(root=DATA_DIR, train=train, download=True)
     if dataset_name == "fashion":
-        dataset = datasets.FashionMNIST(root=DATA_DIR, train=train, download=True)
+        dataset = Fashion(root=DATA_DIR, train=train, download=True)
     if dataset_name == "weather":
         dataset = WeatherDataset(train=train)
     if dataset_name == "intel_image":
