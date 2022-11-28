@@ -124,8 +124,24 @@ class IntelImageDataset(Dataset):
 class Fashion(datasets.FashionMNIST):
 
     def __getitem__(self, index: int):
-        img, label = super().__getitem__(index)
-        return Image.fromarray(np.array(img.convert("RGB"))), label
+        """
+        :param index: Index
+        :return: (image, target) where target is index of the target class.
+        """
+        img, target = self.data[index], int(self.targets[index])
+
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        img = Image.fromarray(img.numpy(), mode="L").convert("RGB")
+
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target
+
 
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     """Load pytorch dataset.
