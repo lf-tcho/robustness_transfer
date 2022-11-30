@@ -41,7 +41,7 @@ class Evaluator:
             _, _, success = l_inf_pgd(fmodel, inputs, labels, epsilons=self.epsilon)
             robust_accuracy += batch_size - success.float().sum().item()
         accuracy = accuracy / len(self.dataloader.dataset)
-        print(f"Accurarcy: {accuracy}")
+        print(f"Accuracy: {accuracy}")
         robust_accuracy = robust_accuracy / len(self.dataloader.dataset)
         print(f"Robust accuracy: {robust_accuracy}")
         output = {"accuracy": accuracy, "robust_accuracy": robust_accuracy}
