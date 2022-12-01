@@ -198,6 +198,7 @@ def main():
                 dataloader,
                 epoch=args.evaleps,
                 device=torch.device(args.device),
+                epsilon=[args.epsilon]
             )
             evaluator.eval()
 
