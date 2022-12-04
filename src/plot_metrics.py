@@ -24,12 +24,15 @@ def plot_metrics(experiment_path: Path):
     ax2 = ax1.twinx()
     accuracy = sorted(accuracy)
     robust_accuracy = sorted(robust_accuracy)
-    ax1.plot([i[0] for i in accuracy], [i[1] for i in accuracy], 'g-')
-    ax2.plot([i[0] for i in robust_accuracy], [i[1] for i in robust_accuracy], 'b-')
+    lns1 = ax1.plot([i[0] for i in accuracy], [i[1] for i in accuracy], 'g-', label="Accuracy")
+    lns2 = ax2.plot([i[0] for i in robust_accuracy], [i[1] for i in robust_accuracy], 'b-', label="Robust accuracy")
 
     ax1.set_xlabel('Epochs')
-    ax1.set_ylabel('Accuracy', color='g')
-    ax2.set_ylabel('Robust accuracy', color='b')
+    ax1.set_ylabel('Accuracy')
+    ax2.set_ylabel('Robust accuracy')
+    lns = lns1+lns2
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc="center left")
     ax1.set_title(experiment_path.name)
     fig.savefig(experiment_path / "metrics.png")
 
