@@ -133,7 +133,7 @@ class ImageNetRepresentationAnalysis(Experiment):
             model_output = model_rep(inputs.to(self.device))
             clean_representation = model_output.detach().clone()
             # Calculate the loss
-            loss = torch.mean(torch.norm(model_output - clean_representation*100, dim=1))
+            loss = -torch.mean(torch.norm(model_output - clean_representation*1.00001, dim=1))
             # Calculate gradients of model in backward pass
             loss.backward()
             # Collect datagrad
