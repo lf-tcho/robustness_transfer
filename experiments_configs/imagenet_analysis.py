@@ -80,7 +80,7 @@ class ImageNetAnalysis(Experiment):
 def main():
     """Command line tool to run experiment and evaluation."""
     experiment = ImageNetAnalysis(
-        experiment_name="",
+        experiment_name="__imagenet_bs_16_ds_cifar10_eps_10_lr_0.01_lrs_None_lwf_0.1_tf_method_ft",
         num_categories=10
     )
 

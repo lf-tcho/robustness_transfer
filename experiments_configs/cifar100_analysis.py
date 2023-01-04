@@ -81,7 +81,7 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100Analysis(
-        experiment_name="bs_128_ds_cifar10_eps_10_lr_0.001_lrs_None_tf_method_lp",
+        experiment_name="lp_bs_128_eps_10_lr_0.01_lp_1",
         num_categories=10
     )
     experiment.run(torch.device("cuda"))

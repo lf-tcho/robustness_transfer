@@ -205,12 +205,12 @@ class TrainerLwF(Trainer):
         optimizer = self.optimizer
         latest_epoch = self.load_model()
         iteration = (latest_epoch + 1) * len(self.train_dataloader)
+        self.teacher_model.eval()
         for epoch in range(latest_epoch + 1, self.epochs):
             if self.freeze:
                 self.freeze_model(self.model, epoch, self.freeze)
             # Train one epoch
             self.model.train()
-            self.teacher_model.eval()
             for inputs, labels in tqdm(
                 self.train_dataloader, desc=f"Epoch {epoch} (train): "
             ):
@@ -224,9 +224,6 @@ class TrainerLwF(Trainer):
                 writer.add_scalar("Accuracy/train", metrics["accuracy"].item(), iteration)
                 writer.add_scalar("cross_entropy/train", metrics["cross_entropy"].item(), iteration)
                 writer.add_scalar("feature_difference/train", metrics["feature_difference"].item(), iteration)
-                writer.add_scalar(
-                    "Accuracy/train", metrics["accuracy"].item(), iteration
-                )
                 if self.lr_scheduler:
                     writer.add_scalar(
                         "Parameter/LR",
@@ -261,9 +258,6 @@ class TrainerLwF(Trainer):
         metrics = {}
         model_output = self.model(inputs.to(self.device))
         teacher_output = self.teacher_model(inputs.to(self.device))
-        metrics["loss"] = self.loss(
-            model_output, teacher_output, labels.to(self.device)
-        )
         metrics["loss"] = self.loss(model_output, teacher_output, labels.to(self.device))
         metrics["cross_entropy"] = nn.CrossEntropyLoss()(model_output[0], labels.to(self.device))
         metrics["feature_difference"] = torch.mean(torch.norm(model_output[1]-teacher_output[1], dim=1))
@@ -273,7 +267,10 @@ class TrainerLwF(Trainer):
 
     def load_model(self):
         """Load latest model and get epoch."""
-        ckpts = sorted(list(self.experiment_folder.glob("*.pth")))
+        ckpts = sorted(
+            list(self.experiment_folder.glob("*.pth")),
+            key=lambda x: int(x.stem.split("_")[-1]),
+        )
         if ckpts:
             latest_epoch = int(ckpts[-1].stem.split("_")[-1])
             ckpt = f"{CKPT_NAME}_{latest_epoch}.pth"

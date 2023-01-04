@@ -1,17 +1,17 @@
 import argparse
 from math import ceil
-from src.dataloader import get_dataloader
+from ..src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn as nn
-from src.trainer import Trainer
-from src.experiment import Experiment
+from ..src.trainer import Trainer
+from ..src.experiment import Experiment
 import torch
 from torchvision.transforms import Normalize, Resize
-from src.utils import get_experiment_name
-from src.transforms import SquarePad
-from src.evaluator import Evaluator
+from ..src.utils import get_experiment_name
+from ..src.transforms import SquarePad
+from ..src.evaluator import Evaluator
 
 
 class ImageNetExperiment(Experiment):
@@ -28,6 +28,7 @@ class ImageNetExperiment(Experiment):
         lr_scheduler: str = None,
         dataset_name: str = "cifar10",
         num_categories: int = 10,
+        weight_decay: float = 0,
     ):
         """Initilize ImageNetExperiment.
 
@@ -49,6 +50,7 @@ class ImageNetExperiment(Experiment):
         self.lr_scheduler = lr_scheduler
         self.dataset_name = dataset_name
         self.num_categories = num_categories
+        self.weight_decay = weight_decay
 
     def get_model(self):
         """Get model."""
@@ -75,7 +77,7 @@ class ImageNetExperiment(Experiment):
         """Run experiment."""
         model = self.get_model()
         train_dataloader, eval_dataloader = self.get_dataloaders()
-        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
+        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9, weight_decay=self.weight_decay)
         trainer = Trainer(
             model,
             train_dataloader,
@@ -122,6 +124,34 @@ class ImageNetExperiment(Experiment):
         elif self.tf_method == "lp_ft":
             epochs = [i for i in range(self.lp_epochs)]
             return {layer: epochs for layer in layers}
+        elif self.tf_method == "layer1":
+            layers = ["model.conv1", "model.bn1", "model.relu", "model.maxpool",
+                      "model.layer2", "model.layer3", "model.layer4",
+                      "model.avgpool", "model.fc"]
+            epochs = [i for i in range(self.epochs)]
+            return {layer: epochs for layer in layers}
+        elif self.tf_method == "layer1_lp":
+            layers = ["model.conv1", "model.bn1", "model.relu", "model.maxpool",
+                      "model.layer2", "model.layer3", "model.layer4",
+                      "model.avgpool"]
+            epochs = [i for i in range(self.epochs)]
+            return {layer: epochs for layer in layers}
+        elif self.tf_method == "layer4":
+            layers = ["model.conv1", "model.bn1", "model.relu", "model.maxpool",
+                      "model.layer1", "model.layer2", "model.layer3",
+                      "model.avgpool", "model.fc"]
+            epochs = [i for i in range(self.epochs)]
+            return {layer: epochs for layer in layers}
+        elif self.tf_method == "layer4_lp":
+            layers = ["model.conv1", "model.bn1", "model.relu", "model.maxpool",
+                      "model.layer1", "model.layer2", "model.layer3"]
+            epochs = [i for i in range(self.epochs)]
+            return {layer: epochs for layer in layers}
+        elif self.tf_method == "lp_bn_avg":
+            layers = ["model.conv1", "model.relu", "model.maxpool",
+                      "model.layer1", "model.layer2", "model.layer3", "model.layer4"]
+            epochs = [i for i in range(self.epochs)]
+            return {layer: epochs for layer in layers}
         else:
             return None
 
@@ -129,22 +159,25 @@ class ImageNetExperiment(Experiment):
 def main():
     """Command line tool to run experiment and evaluation."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("-bs", "--batch_size", default=5, type=int)
+    parser.add_argument("-bs", "--batch_size", default=32, type=int)
     parser.add_argument("-eps", "--epochs", default=10, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.001, type=float)
-    parser.add_argument("-device", "--device", default="cpu")
-    parser.add_argument("-method", "--tf_method", default="lp", type=str)
-    parser.add_argument("-eval", "--eval", default=0, type=int)
-    parser.add_argument("-train", "--train", default=0, type=int)
-    parser.add_argument("-evaleps", "--evaleps", default=None, type=int)
+
+    parser.add_argument("-weight_decay", "--weight_decay", default=0.1, type=float)
+
+    parser.add_argument("-device", "--device", default="cuda")
+    parser.add_argument("-method", "--tf_method", default="ft", type=str)
+    parser.add_argument("-eval", "--eval", default=1, type=int)
+    parser.add_argument("-train", "--train", default=1, type=int)
+    parser.add_argument("-evaleps", "--evaleps", default=9, type=int)
     parser.add_argument("-evalbs", "--evalbs", default=32, type=int)
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
-    parser.add_argument("-lr_scheduler", "--lr_scheduler", default=None, type=str)
+    parser.add_argument("-lr_scheduler", "--lr_scheduler", default="cosine", type=str)
     parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
     parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
     parser.add_argument("-eval_all", "--eval_all", default=0, type=int)
-    parser.add_argument("-epsilon", "--epsilon", default=8/255, type=float)
+    parser.add_argument("-epsilon", "--epsilon", default=1/255, type=float)
     args = parser.parse_args()
     experiment_args = {
         "_": "imagenet",
@@ -154,6 +187,7 @@ def main():
         "tf_method": args.tf_method,
         "lrs": args.lr_scheduler,
         "ds": args.dataset_name,
+        "weight_decay": args.weight_decay,
     }
     if args.tf_method == "lp_ft":
         experiment_args["lpeps"] = args.lp_epochs
@@ -167,6 +201,7 @@ def main():
         args.lr_scheduler,
         args.dataset_name,
         args.num_categories,
+        args.weight_decay,
     )
 
     if args.train:
