@@ -1,3 +1,5 @@
+import os
+from urllib.request import urlretrieve
 import subprocess
 from math import ceil
 from pathlib import Path
@@ -15,6 +17,139 @@ import numpy as np
 
 DATA_DIR = "./data"
 
+class dSpritesTorchDataset(torch.utils.data.Dataset):
+    def __init__(self, path='./data/dsprites/', train=True, target_latent="shape"):
+        url = "https://github.com/deepmind/dsprites-dataset/raw/master/dsprites_ndarray_co1sh3sc6or40x32y32_64x64.npz"
+        
+        self.path = path    
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+            urlretrieve(url, os.path.join(path, 'dsprites.npz'))
+        self.npz = self.load_data()
+        print('done loading!')
+
+        metadata = self.npz["metadata"][()]
+        self.latent_class_values = metadata["latents_possible_values"]
+        self.latent_class_names = metadata["latents_names"]
+        self.latent_classes = self.npz["latents_classes"][()]
+        
+        self.target_latent = target_latent
+
+        self.X = self.images()
+        self.y = self.get_latent_classes(
+            latent_class_names=target_latent
+            ).squeeze()
+
+        if train:
+            self.X = self.X[:int(len(self.X)*0.8)]
+            self.y = self.y[:int(len(self.y)*0.8)] 
+        else:
+            self.X = self.X[int(len(self.X)*0.8):]
+            self.y = self.y[int(len(self.y)*0.8):] 
+
+        self.num_classes = \
+            len(self.latent_class_values[self.target_latent])
+
+        self.num_samples = len(self.X)
+
+    def load_data(self):
+        dataset_zip = np.load(os.path.join(self.path, 'dsprites.npz'),
+                    encoding="latin1", allow_pickle=True)
+        return dataset_zip
+  
+    def images(self):
+        """
+        Lazily load and returns all dataset images.
+        - self._images: (3D np array): images (image x height x width)
+        """
+
+        if not hasattr(self, "_images"):
+            self._images = self.npz["imgs"][()]
+        return self._images
+
+    def _check_class_name(self, latent_class_name="shape"):
+        """
+        self._check_class_name()
+        Raises an error if latent_class_name is not recognized.
+        Optional args:
+        - latent_class_name (str): name of latent class to check. 
+            (default: "shape")
+        """
+        if latent_class_name not in self.latent_class_names:
+            latent_names_str = ", ".join(self.latent_class_names)
+            raise ValueError(
+                f"{latent_class_name} not recognized as a latent class name. "
+                f"Must be in: {latent_names_str}."
+                )
+
+
+    def get_latent_name_idxs(self, latent_class_names=None):
+        """
+        self.get_latent_name_idxs()
+        Returns indices for latent class names.
+        Optional args:
+        - latent_class_names (str or list): name(s) of latent class(es) for 
+            which to return indices. Order is preserved. If None, indices 
+            for all latents are returned. (default: None)
+        
+        Returns:
+        - (list): list of latent class indices
+        """
+
+        if latent_class_names is None:
+            return np.arange(len(self.latent_class_names))
+
+        if not isinstance(latent_class_names, (list, tuple)):
+            latent_class_names = [latent_class_names]       
+        
+        latent_name_idxs = []
+        for latent_class_name in latent_class_names:
+            self._check_class_name(latent_class_name)
+            latent_name_idxs.append(
+                self.latent_class_names.index(latent_class_name)
+                ) 
+
+        return latent_name_idxs  
+
+
+    def get_latent_classes(self, indices=None, latent_class_names=None):
+        """
+        self.get_latent_classes()
+        Returns latent classes for each image.
+        Optional args:
+        - indices (array-like): image indices for which to return latent 
+            class values. Order is preserved. If None, all are returned 
+            (default: None).
+        - latent_class_names (str or list): name(s) of latent class(es) 
+            for which to return latent class values. Order is preserved. 
+            If None, values for all latents are returned. (default: None)
+        
+        Returns:
+        - (2D np array): array of latent classes (img x latent class)
+        """
+
+        if indices is not None:
+            indices = np.asarray(indices)
+        else:
+            indices = slice(None)
+
+        latent_class_name_idxs = self.get_latent_name_idxs(latent_class_names)
+
+        return self.latent_classes[indices][:, latent_class_name_idxs]
+
+
+    def __len__(self):
+        return self.num_samples
+
+
+    def __getitem__(self, idx):
+        X = self.X[idx].astype(np.float32)
+        y = self.y[idx]
+
+        X = torch.tensor(X)
+        y = torch.tensor(y)
+
+        return (X, y, idx)
 
 class WeatherDataset(Dataset):
     """Dataset of cloudy, rain, shine and sunrise weather images."""
@@ -160,6 +295,8 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
         dataset = WeatherDataset(train=train)
     if dataset_name == "intel_image":
         dataset = IntelImageDataset(train=train)
+    if dataset_name=="dsprites":
+        dataset = dSpritesTorchDataset(train=train)
     if size:
         indices = torch.arange(size)
         dataset = Subset(dataset, indices)
