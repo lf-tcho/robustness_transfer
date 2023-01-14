@@ -1,4 +1,4 @@
-## Th3.2 regression experiments on DSprites Dataset 
+## Th3.2 regression experiments on *dsprites dataset* 
 ## Install dependencies
 
 ```bash
