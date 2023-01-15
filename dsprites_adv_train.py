@@ -1,3 +1,6 @@
+'''
+Reference : https://github.com/ndb796/Pytorch-Adversarial-Training-CIFAR/blob/master/pgd_adversarial_training.py
+'''
 import torch
 import torch.nn as nn
 import torch.optim as optim
