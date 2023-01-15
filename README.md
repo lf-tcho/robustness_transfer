@@ -7,10 +7,16 @@
 pip install -r requirements.txt
 ```
 
-## Training on dsprites
+## Training (from scratch) on dsprites
 
 ```bash
-python dsprites_training.py --target_latent orientation
+python dsprites_adv_train.py --target_latent orientation
+```
+
+## Linear Probing / Finetuning on dsprites
+
+```bash
+python dsprites_lp.py --target_latent orientation
 ```
 
 ## Evaluating on dsprites

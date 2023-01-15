@@ -149,7 +149,7 @@ class dSpritesTorchDataset(torch.utils.data.Dataset):
         X = torch.tensor(X)
         y = torch.tensor(y)
 
-        return (X, y, idx)
+        return X, y, idx
 
 class WeatherDataset(Dataset):
     """Dataset of cloudy, rain, shine and sunrise weather images."""

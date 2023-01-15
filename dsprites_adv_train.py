@@ -10,6 +10,7 @@ import torchvision.transforms as transforms
 import os
 import argparse
 import copy
+from tqdm.auto import tqdm
 
 from src.dataloader import dSpritesTorchDataset
 from src.models import Model_dsprites
@@ -42,15 +43,16 @@ class LinfPGDAttack(object):
         self.model = model
         self.alpha = alpha
         self.epsilon = epsilon
+        self.k = k
 
     def perturb(self, x_natural, y):
         x = x_natural.detach()
         x = x + torch.zeros_like(x).uniform_(-self.epsilon, self.epsilon)
-        for i in range(k):
+        for i in range(self.k):
             x.requires_grad_()
             with torch.enable_grad():
                 logits = self.model(x)
-                loss = F.mse_loss(logits, y)
+                loss = F.mse_loss(logits, y.resize(1, y.size(0)).float())
             grad = torch.autograd.grad(loss, [x])[0]
             x = x.detach() + self.alpha * torch.sign(grad.detach())
             x = torch.min(torch.max(x, x_natural - self.epsilon), x_natural + self.epsilon)
@@ -71,28 +73,27 @@ def train(net, train_loader, optimizer, adversary, criterion, epoch, args):
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx, (inputs, targets) in enumerate(train_loader):
+    batch_idx = 0
+    for iter_data in enumerate(train_loader):
+        inputs, targets, _ = iter_data[1] # ignore indices
+        inputs = inputs.resize(inputs.size(0), 1, 64, 64)
         inputs, targets = inputs.to(args.device), targets.to(args.device)
         optimizer.zero_grad()
 
         adv = adversary.perturb(inputs, targets)
         adv_outputs = net(adv)
-        loss = criterion(adv_outputs, targets)
+        loss = criterion(adv_outputs, targets.resize(1, targets.size(0)).float())
         loss.backward()
 
         optimizer.step()
         train_loss += loss.item()
-        _, predicted = adv_outputs.max(1)
 
         total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
         
         if batch_idx % 10 == 0:
             print('\nCurrent batch:', str(batch_idx))
-            print('Current adversarial train accuracy:', str(predicted.eq(targets).sum().item() / targets.size(0)))
             print('Current adversarial train loss:', loss.item())
-
-    print('\nTotal adversarial train accuarcy:', 100. * correct / total)
+        batch_idx += 1 
     print('Total adversarial train loss:', train_loss)
 
 def test(net, test_loader, optimizer, adversary, criterion, epoch, args):
@@ -103,17 +104,17 @@ def test(net, test_loader, optimizer, adversary, criterion, epoch, args):
     benign_correct = 0
     adv_correct = 0
     total = 0
+    batch_idx = 0
     with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(test_loader):
+        for iter_data in enumerate(test_loader):
+            inputs, targets, _ = iter_data[1] # ignore indices
+            inputs = inputs.resize(inputs.size(0), 1, 64, 64)
             inputs, targets = inputs.to(args.device), targets.to(args.device)
             total += targets.size(0)
 
             outputs = net(inputs)
-            loss = criterion(outputs, targets)
+            loss = criterion(outputs, targets.resize(1, targets.size(0)).float())
             benign_loss += loss.item()
-
-            _, predicted = outputs.max(1)
-            benign_correct += predicted.eq(targets).sum().item()
 
             if batch_idx % 10 == 0:
                 print('\nCurrent batch:', str(batch_idx))
@@ -121,12 +122,12 @@ def test(net, test_loader, optimizer, adversary, criterion, epoch, args):
 
             adv = adversary.perturb(inputs, targets)
             adv_outputs = net(adv)
-            loss = criterion(adv_outputs, targets)
+            loss = criterion(adv_outputs, targets.resize(1, targets.size(0)).float())
             adv_loss += loss.item()
 
             if batch_idx % 10 == 0:
                 print('Current adversarial test loss:', loss.item())
-
+            batch_idx += 1 
     print('Total benign test loss:', benign_loss)
     print('Total adversarial test loss:', adv_loss)
 
@@ -163,10 +164,10 @@ def main(args):
 
     # Define datasets and dataloaders
     train_loader = torch.utils.data.DataLoader(
-        dSprites_torchdataset, batch_size=args.batch_size, sampler=train_sampler, shuffle=True, num_workers=4
+        dSprites_torchdataset, batch_size=args.batch_size, sampler=train_sampler,
         )
     test_loader = torch.utils.data.DataLoader(
-        dSprites_torchdataset, batch_size=args.batch_size, sampler=test_sampler, shuffle=True, num_workers=4
+        dSprites_torchdataset, batch_size=args.batch_size, sampler=test_sampler,
         )
 
     print(f"Dataset size: {len(train_sampler)} training, "
@@ -181,17 +182,17 @@ def main(args):
     optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=0.0002)
 
 
-    for epoch in range(0, args.num_epochs):
+    for epoch in tqdm(range(0, args.num_epochs)):
         adjust_learning_rate(optimizer, epoch, args.learning_rate)
-        train(net, train_loader, optimizer, adversary, criterion, epoch)
-        test(net, test_loader, optimizer, adversary, criterion, epoch)
+        train(net, train_loader, optimizer, adversary, criterion, epoch, args)
+        test(net, test_loader, optimizer, adversary, criterion, epoch, args)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--save_dir', type=str, default="models/dsprites/Linf/")
     parser.add_argument('--target_latent', type=str, default="scale")
     parser.add_argument('--num_epochs', type=int, default=200,)
-    parser.add_argument('--learning_rate', type=float, default=0.1,)
+    parser.add_argument('--learning_rate', type=float, default=1e-2,)
     parser.add_argument('--epsilon', type=float, default=0.0314,)
     parser.add_argument('--k', type=int, default=7,)
     parser.add_argument('--alpha', type=float, default=0.00784,)
