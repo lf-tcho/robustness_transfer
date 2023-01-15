@@ -1,0 +1,1 @@
+{"folder checkpoint": "experiments/bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp/models/scale.pth", "W_spectral_norm": 5.115005016326904, "loss": 139.93039377767906, "loss_adv": 12069.347998071265, "avg_feature_difference": 132.995533273413, "C2": 468.287841796875}

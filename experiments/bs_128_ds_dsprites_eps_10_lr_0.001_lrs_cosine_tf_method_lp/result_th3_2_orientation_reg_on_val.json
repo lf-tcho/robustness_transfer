@@ -1,0 +1,1 @@
+{"folder checkpoint": "experiments/bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp/models/orientation.pth", "W_spectral_norm": 3.2972710132598877, "loss": 121.71614839533706, "loss_adv": 2249.123111493058, "avg_feature_difference": 52.25007573121952, "C2": 412.1486511230469}

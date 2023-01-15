@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import Compose, ToTensor
 import torch
 from typing import List
-from ..src.utils import download_url, unzip, copy_all_files
+from src.utils import download_url, unzip, copy_all_files
 import glob
 from torchvision.io import read_image
 from torch.utils.data import Dataset
@@ -26,7 +26,7 @@ class dSpritesTorchDataset(torch.utils.data.Dataset):
             os.makedirs(path, exist_ok=True)
             urlretrieve(url, os.path.join(path, 'dsprites.npz'))
         self.npz = self.load_data()
-        print('done loading!')
+        print('done data loading!')
 
         metadata = self.npz["metadata"][()]
         self.latent_class_values = metadata["latents_possible_values"]

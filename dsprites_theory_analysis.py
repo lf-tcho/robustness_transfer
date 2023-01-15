@@ -1,18 +1,19 @@
 import argparse
 from math import ceil
-from ..src.dataloader import get_dataloader
+from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn as nn
-from ..src.trainer import Trainer
-from ..src.experiment import Experiment
+from src.trainer import Trainer
+from src.experiment import Experiment
 import torch
+import torch.nn.functional as F
 
 from torchvision.transforms import Normalize, Resize
 import foolbox as fb
 from tqdm import tqdm
-from ..src.models import WideResNetForLwF
+from src.models import *
 from robustbench.utils import download_gdrive, rm_substr_from_state_dict, load_model
 import json
 from pathlib import Path
@@ -21,8 +22,7 @@ import os
 
 CKPT_NAME = "ckpt"
 
-
-class Cifar100TheoryAnalysis(Experiment):
+class DSpritesTheoryAnalysis(Experiment):
     """Experiment for linear probing."""
 
     def __init__(
@@ -39,6 +39,7 @@ class Cifar100TheoryAnalysis(Experiment):
         :param experiment_name: Name of experiment
         """
         super().__init__(experiment_name)
+        self.target_latent = target_latent
         self.experiment_folder = Path("./experiments") / experiment_name
         self.ckpt_path =  f"{self.experiment_folder}/models/{target_latent}.pth"
         self.results_dir = f"{self.experiment_folder}/results"
@@ -52,43 +53,6 @@ class Cifar100TheoryAnalysis(Experiment):
     def get_model(self):
         """Get model."""
         model = Model_dsprites()
-        return model
-
-    def get_model_rep(self):
-        """Get model."""
-        model_name = "Addepalli2022Efficient_WRN_34_10"
-        dataset = "cifar100"
-        threat_model = "Linf"
-        model_dir = "./models"
-
-        model = WideResNetForLwF(depth=34, widen_factor=10, num_classes=100)
-        gdrive_id = '1-3c-iniqNfiwGoGPHC3nSostnG6J9fDt'
-        dataset_: BenchmarkDataset = BenchmarkDataset(dataset)
-        threat_model_: ThreatModel = ThreatModel(threat_model)
-        model_dir_ = Path(model_dir) / dataset_.value / threat_model_.value
-        model_path = model_dir_ / f'{model_name}.pt'
-
-        if not os.path.exists(model_dir_):
-            os.makedirs(model_dir_)
-        if not os.path.isfile(model_path):
-            download_gdrive(gdrive_id, model_path)
-        checkpoint = torch.load(model_path, map_location=torch.device('cpu'))
-
-        try:
-            # needed for the model of `Carmon2019Unlabeled`
-            state_dict = rm_substr_from_state_dict(checkpoint['state_dict'],
-                                                   'module.')
-            # needed for the model of `Chen2020Efficient`
-            state_dict = rm_substr_from_state_dict(state_dict, 'model.')
-        except:
-            state_dict = rm_substr_from_state_dict(checkpoint, 'module.')
-            state_dict = rm_substr_from_state_dict(state_dict, 'model.')
-
-        model.load_state_dict(state_dict, strict=True)
-        model.eval()
-
-        # Change output size of model to 10 classes
-        model.fc = torch.nn.Linear(640, self.num_categories)
         return model
 
     def run(self, device: torch.device = torch.device("cuda")):
@@ -107,52 +71,42 @@ class Cifar100TheoryAnalysis(Experiment):
         model.eval()
         fmodel = fb.PyTorchModel(model, bounds=(-1, 1))
 
-        # model_rep = self.get_model_rep().to(device)
-        # model_rep, _, _ = self.load_model(model_rep)
-        # model_rep.eval()
-
-        accuracy = 0
-        robust_accuracy = 0
         loss = 0
         loss_adv = 0
         feature_difference = 0
         c2 = float("-inf")
         count = 0
         l_inf_pgd = fb.attacks.LinfPGD(steps=20)
-
-        for inputs, labels in tqdm(data_loader):
+        tt = 0
+        for inputs, labels, idx in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
+            inputs = inputs.resize(inputs.size(0), 1, 64, 64)
             batch_size = inputs.shape[0]
-            accuracy += fb.utils.accuracy(fmodel, inputs, labels) * batch_size
-            _, adv_batch, success = l_inf_pgd(fmodel, inputs, labels, epsilons=self.epsilon)
-            robust_accuracy += batch_size - success.float().sum().item()
+
+            criterion = fb.criteria.Regression(labels)
+            _, adv_batch, success = l_inf_pgd(fmodel, inputs, criterion=criterion, epsilons=self.epsilon)
+            adv_batch[0] = adv_batch[0].resize(inputs.size(0), 1, 64, 64)
             with torch.no_grad():
                 frep = model.get_features(inputs.to(self.device))
                 frep_adv = model.get_features(adv_batch[0].to(self.device))
                 fx = model(inputs.to(self.device))
                 fx_adv = model(adv_batch[0].to(self.device))
 
-                # model_output = model_rep(inputs.to(self.device))
-                # model_output_adv = model_rep(adv_batch[0].to(self.device))
-                loss += nn.MSELoss(fx, labels.to(self.device)).item()
-                loss_adv += nn.MSELoss(fx_adv, labels.to(self.device)).item()
+                loss += nn.functional.mse_loss(fx, labels.to(self.device)).item()
+                loss_adv += nn.functional.mse_loss(fx_adv, labels.to(self.device)).item()
                 feature_difference += torch.mean(torch.linalg.norm((frep_adv - frep), dim=1)).item()
-                c2 = max(c2, nn.MSELoss(fx, labels.to(self.device)).item())
-            count += 1
+                c2 = max(c2, nn.functional.mse_loss(fx, labels.to(self.device)).item())
+            count += labels.size(0)
+            # tt+=1
+            # if tt > 1000: break
         loss /= count
         loss_adv /= count
-        avg_feature_difference /= feature_difference/count
-        effective_w_difference /= count
-        effective_w_difference_on_f /= count
-        accuracy = accuracy / len(data_loader.dataset)
-        robust_accuracy = robust_accuracy / len(data_loader.dataset)
-        output.update({"accuracy": accuracy, "robust_accuracy": robust_accuracy, "loss": loss,
-                       "loss_adv": loss_adv, "avg_feature_difference": avg_feature_difference,
-                       "effective_w_difference": effective_w_difference,
-                       "effective_w_difference_on_f": effective_w_difference_on_f})
+        avg_feature_difference = feature_difference/count
+        output.update({"loss": loss, "loss_adv": loss_adv, "avg_feature_difference": avg_feature_difference,
+                       "C2": c2})
         print(output)
 
-        with open(self.experiment_folder / f"weight_norms2_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        with open(self.experiment_folder / f"result_th3_2_{self.target_latent}_reg_on_val.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
@@ -165,14 +119,14 @@ class Cifar100TheoryAnalysis(Experiment):
         train_dataloader = get_dataloader(
             self.dataset_name,
             True,
-            batch_size=self.batch_size,
+            batch_size=1,
             shuffle=True,
             transforms=self.transforms(),
         )
         eval_dataloader = get_dataloader(
             self.dataset_name,
             False,
-            batch_size=self.batch_size,
+            batch_size=1,
             transforms=self.transforms()
         )
         return train_dataloader, eval_dataloader
@@ -182,16 +136,24 @@ class Cifar100TheoryAnalysis(Experiment):
         return [Resize((32, 32)), Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
 
 
-def main():
+def main(args):
     """Command line tool to run experiment and evaluation."""
 
-    experiment = Cifar100TheoryAnalysis(
-        experiment_name="bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
-        dataset_name="dsprites",
-        target_latent="orientation",
+    experiment = DSpritesTheoryAnalysis(
+        experiment_name=args.exp_name,
+        dataset_name=args.dataset_name,
+        target_latent=args.target_latent,
     )
     experiment.run(torch.device("cuda"))
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--exp_name', type=str, default="bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
+            help="name od the experiment/ save dir")
+    parser.add_argument('--dataset_name', type=str, default="dsprites",
+            help="name of the dataset")
+    parser.add_argument('--target_latent', type=str, default="scale")
+    args = parser.parse_args()
+
+    main(args)

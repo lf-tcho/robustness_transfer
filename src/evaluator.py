@@ -1,7 +1,7 @@
 """Evaluate models."""
 
-from ..src.experiment import Experiment
-from ..src.trainer import CKPT_NAME
+from experiment import Experiment
+from src.trainer import CKPT_NAME
 import torch
 from pathlib import Path
 import foolbox as fb

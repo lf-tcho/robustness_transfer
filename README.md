@@ -1,14 +1,20 @@
-## Th3.2 regression experiments on *dsprites dataset* 
+## Th3.2 on dsprites(regression)
+
+## Setup
 ## Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Folder structure
+## Training on dsprites
 
-- src/: Contains main code for training and evaluation 
-- experiment_configs/: Contains experiment configurations using the src code 
+```bash
+python dsprites_training.py --target_latent orientation
+```
 
-For each experiment define a experiment config with specific train code (optimizer, dataloader, model, etc.). 
-Trainer class handles generic training. Evaluator class evaluates the model of a specific experiment (adverserial attacks, etc.). 
+## Evaluating on dsprites
+
+```bash
+python dsprites_theory_analysis.py --target_latent orientation
+```
