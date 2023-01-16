@@ -40,7 +40,7 @@ class Cifar100TheoryAnalysis(Experiment):
         """
         super().__init__(experiment_name)
         self.num_categories = num_categories
-        self.experiment_folder = Path("./experiments") / experiment_name
+        self.experiment_folder = Path("./experiments_theory") / experiment_name
         # self.model = None
         # self.model_rep = None
         self.dataset_name = dataset_name
@@ -103,26 +103,31 @@ class Cifar100TheoryAnalysis(Experiment):
         # look at the weight matrix of last linear layer
         w_matrix = model.fc.weight
         mean_max_dif = 0
+        max_max_dif = 0
         for i in range(w_matrix.shape[0]):
             max_dif = 0
             for j in range(w_matrix.shape[0]):
                 temp = torch.norm(w_matrix[j, :] - w_matrix[i, :], 'fro').item()
                 if temp > max_dif:
                     max_dif = temp
+                if temp > max_max_dif:
+                    max_max_dif = temp
             mean_max_dif += max_dif
         mean_max_dif /= w_matrix.shape[0]
         spectral_norm = torch.linalg.matrix_norm(w_matrix, 2).item()
         frobenius_norm = torch.linalg.matrix_norm(w_matrix, 'fro').item()
         output = {"folder checkpoint": str(folder_ckpt), "spectral_norm": spectral_norm,
-                  "frobenius_norm": frobenius_norm, "Mean_Max_dif": mean_max_dif}
+                  "frobenius_norm": frobenius_norm, "Mean_Max_dif": mean_max_dif, "Max_Max_dif": max_max_dif}
         print(output)
+        # with open(self.experiment_folder / f"theory_linear_layer constants_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        #     json.dump(output, file)
 
         train_dataloader, eval_dataloader = self.get_dataloaders()
         # choose training or validation dataset
         data_loader = eval_dataloader
+
         model.eval()
         fmodel = fb.PyTorchModel(model, bounds=(-1, 1))
-
         model_rep = self.get_model_rep().to(device)
         model_rep, _, _ = self.load_model(model_rep)
         model_rep.eval()
@@ -178,7 +183,7 @@ class Cifar100TheoryAnalysis(Experiment):
                        "effective_w_difference_on_f": effective_w_difference_on_f})
         print(output)
 
-        with open(self.experiment_folder / f"weight_norms2_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        with open(self.experiment_folder / f"theory_constants_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
@@ -222,9 +227,9 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100TheoryAnalysis(
-        experiment_name="bs_128_ds_cifar10_eps_10_lr_0.001_lrs_None_tf_method_lp",
-        num_categories=10,  # cifar10=10, fashion=10, intelImage=6
-        dataset_name="cifar10"
+        experiment_name="bs_128_ds_fashion_eps_20_lr_0.01_lrs_None_tf_method_lp",
+        num_categories=10,  # cifar10=10, fashion=10, intel_image=6
+        dataset_name="fashion"
     )
     experiment.run(torch.device("cuda"))
 

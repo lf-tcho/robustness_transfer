@@ -42,7 +42,7 @@ class ImageNetTheoryAnalysis(Experiment):
         """
         super().__init__(experiment_name)
         self.num_categories = num_categories
-        self.experiment_folder = Path("./experiments") / experiment_name
+        self.experiment_folder = Path("./experiments_theory") / experiment_name
         # self.model = None
         # self.model_rep = None
         self.dataset_name = dataset_name
@@ -191,10 +191,10 @@ class ImageNetTheoryAnalysis(Experiment):
         output.update({"accuracy": accuracy, "robust_accuracy": robust_accuracy, "cross_entropy": cross_entropy,
                        "cross_entropy_adv": cross_entropy_adv, "feature_difference": feature_difference,
                        "effective_w_difference": effective_w_difference,
-                       "effective_w_difference_on_f": effective_w_difference_on_f})
+                       "effective_w_difference_on_f": effective_w_difference_on_f, "epsilon": self.epsilon[0]})
         print(output)
 
-        with open(self.experiment_folder / f"weight_norms2_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        with open(self.experiment_folder / f"theory_constants_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
@@ -238,10 +238,10 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = ImageNetTheoryAnalysis(
-        experiment_name="__imagenet_bs_32_ds_fashion_eps_10_lr_0.001_lrs_None_tf_method_lp",
-        num_categories=10,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="fashion",
-        epsilon=[1/255],  # instead of 8/255
+        experiment_name="__imagenet_bs_32_ds_intel_image_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
+        num_categories=6,  # cifar10=10, fashion=10, intel_image=6
+        dataset_name="intel_image",
+        epsilon=[4/255],  # instead of 8/255
         batch_size=32
     )
     experiment.run(torch.device("cuda"))

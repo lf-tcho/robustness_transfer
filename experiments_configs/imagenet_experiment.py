@@ -162,22 +162,19 @@ def main():
     parser.add_argument("-bs", "--batch_size", default=32, type=int)
     parser.add_argument("-eps", "--epochs", default=10, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.001, type=float)
-
-    parser.add_argument("-weight_decay", "--weight_decay", default=0.1, type=float)
-
     parser.add_argument("-device", "--device", default="cuda")
-    parser.add_argument("-method", "--tf_method", default="ft", type=str)
+    parser.add_argument("-method", "--tf_method", default="lp", type=str)
     parser.add_argument("-eval", "--eval", default=1, type=int)
     parser.add_argument("-train", "--train", default=1, type=int)
     parser.add_argument("-evaleps", "--evaleps", default=9, type=int)
     parser.add_argument("-evalbs", "--evalbs", default=32, type=int)
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
-    parser.add_argument("-lr_scheduler", "--lr_scheduler", default="cosine", type=str)
-    parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str)
-    parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
+    parser.add_argument("-lr_scheduler", "--lr_scheduler", default="cosine", type=str)  # "cosine"
+    parser.add_argument("-ds", "--dataset_name", default="intel_image", type=str)  # cifar10=10, fashion=10, intel_image=6
+    parser.add_argument("-num_cat", "--num_categories", default=6, type=int)
     parser.add_argument("-eval_all", "--eval_all", default=0, type=int)
-    parser.add_argument("-epsilon", "--epsilon", default=1/255, type=float)
+    parser.add_argument("-epsilon", "--epsilon", default=4/255, type=float)
     args = parser.parse_args()
     experiment_args = {
         "_": "imagenet",
@@ -187,7 +184,6 @@ def main():
         "tf_method": args.tf_method,
         "lrs": args.lr_scheduler,
         "ds": args.dataset_name,
-        "weight_decay": args.weight_decay,
     }
     if args.tf_method == "lp_ft":
         experiment_args["lpeps"] = args.lp_epochs
@@ -201,7 +197,6 @@ def main():
         args.lr_scheduler,
         args.dataset_name,
         args.num_categories,
-        args.weight_decay,
     )
 
     if args.train:

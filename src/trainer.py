@@ -50,7 +50,7 @@ class Trainer:
         self.loss = loss
         self.epochs = epochs
         self.optimizer = optimizer
-        self.experiment_folder = Path("./experiments") / experiment_name
+        self.experiment_folder = Path("./experiments_theory") / experiment_name
         self.freeze = freeze
         self.lr_scheduler = lr_scheduler
 

@@ -40,7 +40,7 @@ class Cifar100RepresentationAnalysis(Experiment):
         """
         super().__init__(experiment_name)
         self.num_categories = num_categories
-        self.experiment_folder = Path("./experiments") / experiment_name
+        self.experiment_folder = Path("./experiments_theory") / experiment_name
         # self.model = None
         # self.model_rep = None
         self.dataset_name = dataset_name
@@ -106,7 +106,8 @@ class Cifar100RepresentationAnalysis(Experiment):
         model_rep, last_epoch, folder_ckpt = self.load_model(model_rep)
         model_rep.eval()
 
-        feature_difference = 0
+        feature_difference_up = 0
+        feature_difference_down = 0
         count = 0
 
         for inputs, labels in tqdm(data_loader):
@@ -116,22 +117,37 @@ class Cifar100RepresentationAnalysis(Experiment):
             model_output = model_rep(inputs.to(self.device))
             clean_representation = model_output.detach().clone()
             # Calculate the loss
-            loss = torch.mean(torch.norm(model_output - clean_representation**1.00001, dim=1))
+            loss = torch.mean(torch.norm(model_output - clean_representation ** 1.00001, dim=1))
             # Zero all existing gradients
             model_rep.zero_grad()
             # Calculate gradients of model in backward pass
-            loss.backward()
+            loss.backward(retain_graph=True)
             # Collect datagrad
             data_grad = inputs.grad.data
             # Call FGSM Attack
             perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
             # Re-evaluate the perturbed image
             adv_output = model_rep(perturbed_inputs.to(self.device))
-            feature_difference += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
+            feature_difference_up += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
+
+            loss2 = torch.mean(torch.norm(model_output - clean_representation ** (1-0.00001), dim=1))
+            # Zero all existing gradients
+            model_rep.zero_grad()
+            # Calculate gradients of model in backward pass
+            loss2.backward()
+            # Collect datagrad
+            data_grad = inputs.grad.data
+            # Call FGSM Attack
+            perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            # Re-evaluate the perturbed image
+            adv_output = model_rep(perturbed_inputs.to(self.device))
+            feature_difference_down += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
             count += 1
 
-        feature_difference /= count
-        output = {"folder checkpoint": str(folder_ckpt), "feature_difference": feature_difference,
+        feature_difference_up /= count
+        feature_difference_down /= count
+        output = {"folder checkpoint": str(folder_ckpt), "feature_difference_up": feature_difference_up,
+                  "feature_difference_down": feature_difference_down,
                   "epsilon": self.epsilon[0]}
         print(output)
 
@@ -191,8 +207,8 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100RepresentationAnalysis(
-        experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_None_reg_0.001_tf_method_lp",
-        num_categories=6,  # cifar10=10, fashion=10, intelImage=6
+        experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp",
+        num_categories=6,  # cifar10=10, fashion=10, intel_image=6
         dataset_name="intel_image"
     )
     experiment.run(torch.device("cuda"))

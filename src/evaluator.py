@@ -24,7 +24,7 @@ class Evaluator:
         self.epoch = epoch
         self.dataloader = dataloader
         self.device = device
-        self.experiment_folder = Path("./experiments") / self.experiment.experiment_name
+        self.experiment_folder = Path("./experiments_theory") / self.experiment.experiment_name
         self.epsilon = epsilon
 
     def eval(self):
