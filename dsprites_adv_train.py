@@ -1,17 +1,14 @@
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import torch.backends.cudnn as cudnn
-
-import torchvision
-import torchvision.transforms as transforms
-
 import os
+import warnings
 import argparse
-import copy
+from pathlib import Path
+import numpy as np
 from tqdm.auto import tqdm
-
+from urllib.request import urlretrieve
+import torch
+from torch import nn
+import torch.nn.functional as F
+import torchvision
 from src.dataloader import dSpritesTorchDataset
 from src.models import Model_dsprites
 
@@ -52,7 +49,7 @@ class LinfPGDAttack(object):
             x.requires_grad_()
             with torch.enable_grad():
                 logits = self.model(x)
-                loss = F.mse_loss(logits, y.resize(1, y.size(0)).float())
+                loss = F.mse_loss(logits.squeeze(), y.float())
             grad = torch.autograd.grad(loss, [x])[0]
             x = x.detach() + self.alpha * torch.sign(grad.detach())
             x = torch.min(torch.max(x, x_natural - self.epsilon), x_natural + self.epsilon)
@@ -66,85 +63,85 @@ def attack(x, y, model, adversary):
     adv = adversary.perturb(x, y)
     return adv
 
+def train_classifier(model, adversary, dataset, train_sampler, test_sampler, 
+                     num_epochs=10, fraction_of_labels=1.0, batch_size=1024, 
+                     freeze_features=True, subset_seed=None, use_cuda=True, 
+                     progress_bar=True, verbose=False):
+   
+    device = "cuda" if use_cuda and torch.cuda.is_available() else "cpu"
 
-def train(net, train_loader, optimizer, adversary, criterion, epoch, args):
-    print('\n[ Train epoch: %d ]' % epoch)
-    net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
-    batch_idx = 0
-    for iter_data in enumerate(train_loader):
-        inputs, targets, _ = iter_data[1] # ignore indices
-        inputs = inputs.resize(inputs.size(0), 1, 64, 64)
-        inputs, targets = inputs.to(args.device), targets.to(args.device)
-        optimizer.zero_grad()
+    model.to(device)
+    
+    # Define datasets and dataloaders
+    train_dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, sampler=train_sampler
+        )
+    test_dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, sampler=test_sampler
+        )
 
-        adv = adversary.perturb(inputs, targets)
-        adv_outputs = net(adv)
-        loss = criterion(adv_outputs, targets.resize(1, targets.size(0)).float())
-        loss.backward()
+    # Define loss and optimizers
+    train_parameters = model.parameters()
 
-        optimizer.step()
-        train_loss += loss.item()
+    optimizer = torch.optim.Adam(train_parameters, lr=1e-3)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer, T_max=100
+        )
+    # loss_fn = nn.CrossEntropyLoss()
+    loss_fn = nn.MSELoss()
+    # Train classifier on training set
+    model.train()
 
-        total += targets.size(0)
-        
-        if batch_idx % 10 == 0:
-            print('\nCurrent batch:', str(batch_idx))
-            print('Current adversarial train loss:', loss.item())
-        batch_idx += 1 
-    print('Total adversarial train loss:', train_loss)
+    loss_pert_train = []
+    for _ in tqdm(range(num_epochs), disable=not(progress_bar)):
+        total_pert_loss = 0
+        num_total = 0
+        for iter_data in train_dataloader:
+            X, y, _ = iter_data # ignore indices
+            X, y = X.to(args.device), y.to(args.device)
+            X = X.resize(X.size(0), 1, 64, 64)
+            X_pert = adversary.perturb(X, y)
+            
+            optimizer.zero_grad()
 
-def test(net, test_loader, optimizer, adversary, criterion, epoch, args):
-    print('\n[ Test epoch: %d ]' % epoch)
-    net.eval()
-    benign_loss = 0
-    adv_loss = 0
-    benign_correct = 0
-    adv_correct = 0
-    total = 0
-    batch_idx = 0
-    with torch.no_grad():
-        for iter_data in enumerate(test_loader):
-            inputs, targets, _ = iter_data[1] # ignore indices
-            inputs = inputs.resize(inputs.size(0), 1, 64, 64)
-            inputs, targets = inputs.to(args.device), targets.to(args.device)
-            total += targets.size(0)
+            predicted_y_pert_logits = model(X_pert)
+            loss_pert = loss_fn(predicted_y_pert_logits.squeeze(), y.to(torch.float))
+            loss_pert.backward()
+            optimizer.step()
 
-            outputs = net(inputs)
-            loss = criterion(outputs, targets.resize(1, targets.size(0)).float())
-            benign_loss += loss.item()
+            total_pert_loss += loss_pert.item()
+            num_total += y.size(0)
 
-            if batch_idx % 10 == 0:
-                print('\nCurrent batch:', str(batch_idx))
-                print('Current benign test loss:', loss.item())
+        loss_pert_train.append(total_pert_loss / num_total)
+        scheduler.step()
+    # Calculate prediction accuracy on training and test sets
+    model.eval()
 
-            adv = adversary.perturb(inputs, targets)
-            adv_outputs = net(adv)
-            loss = criterion(adv_outputs, targets.resize(1, targets.size(0)).float())
-            adv_loss += loss.item()
-
-            if batch_idx % 10 == 0:
-                print('Current adversarial test loss:', loss.item())
-            batch_idx += 1 
-    print('Total benign test loss:', benign_loss)
-    print('Total adversarial test loss:', adv_loss)
-
-    state = {
-        'net': net.state_dict()
-    }
-    torch.save(state, args.save_dir + f'/{args.target_latent}.pth')
-    print('Model Saved!')
-
-def adjust_learning_rate(optimizer, epoch, learning_rate):
-    lr = learning_rate
-    if epoch >= 100:
-        lr /= 10
-    if epoch >= 150:
-        lr /= 10
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
+    accuracies = []
+    for _, dataloader in enumerate((train_dataloader, test_dataloader)):
+        num_correct = 0
+        num_total = 0
+        loss_pert_total = 0
+        loss_total = 0
+        for iter_data in dataloader:
+            X, y, _ = iter_data # ignore indices
+            X, y = X.to(args.device), y.to(args.device)
+            X = X.resize(X.size(0), 1, 64, 64)
+            X_pert = adversary.perturb(X, y)
+            
+            with torch.no_grad():
+                predicted_y_pert_logits = model(X_pert)
+                predicted_y_logits = model(X)
+            
+            with torch.no_grad():
+                loss_pert = loss_fn(predicted_y_pert_logits.squeeze(), y.to(torch.float))
+                loss = loss_fn(predicted_y_logits.squeeze(), y.to(torch.float))
+                loss_pert_total += loss_pert.item()
+                loss_total += loss.item()
+            num_total += y.size(0)
+    print('perturbed val_loss= ', loss_pert_total/num_total)
+    print('benign val_loss= ', loss_total/num_total)
+    return model, loss_pert_train
 
 def main(args):
     """Command line tool to run experiment and evaluation."""
@@ -162,45 +159,37 @@ def main(args):
       fraction_train=0.8,  # 80:20 data split
       )
 
-    # Define datasets and dataloaders
-    train_loader = torch.utils.data.DataLoader(
-        dSprites_torchdataset, batch_size=args.batch_size, sampler=train_sampler,
-        )
-    test_loader = torch.utils.data.DataLoader(
-        dSprites_torchdataset, batch_size=args.batch_size, sampler=test_sampler,
-        )
-
     print(f"Dataset size: {len(train_sampler)} training, "
           f"{len(test_sampler)} test images")
 
-    net = Model_dsprites()
-    net = net.to(args.device)
-    net = torch.nn.DataParallel(net)
+    # Initialize a core encoder network on which the classifier will be added
+    supervised_model = Model_dsprites()
+    # Initialize an attack
+    adversary = LinfPGDAttack(supervised_model, args.alpha, args.epsilon, args.k)
+    
+    model, _ = train_classifier(
+        model=supervised_model,
+        adversary=adversary,
+        dataset=dSprites_torchdataset,
+        train_sampler=train_sampler,
+        test_sampler=test_sampler,
+        freeze_features=False,
+        num_epochs=args.num_epochs,
+        )
 
-    adversary = LinfPGDAttack(net, args.alpha, args.epsilon, args.k)
-    criterion = nn.MSELoss()
-    optimizer = optim.SGD(net.parameters(), lr=args.learning_rate, momentum=0.9, weight_decay=0.0002)
+    torch.save(model.state_dict(), args.save_dir + f'/{args.target_latent}.pth')
 
-
-    for epoch in tqdm(range(0, args.num_epochs)):
-        adjust_learning_rate(optimizer, epoch, args.learning_rate)
-        train(net, train_loader, optimizer, adversary, criterion, epoch, args)
-        test(net, test_loader, optimizer, adversary, criterion, epoch, args)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--save_dir', type=str, default="models/dsprites/Linf/")
+    parser.add_argument('--save_dir', type=str, default="models/dsprites/Linf")
     parser.add_argument('--target_latent', type=str, default="scale")
-    parser.add_argument('--num_epochs', type=int, default=200,)
-    parser.add_argument('--learning_rate', type=float, default=1e-2,)
+    parser.add_argument('--num_epochs', type=int, default=30, help="# of epochs")
     parser.add_argument('--epsilon', type=float, default=0.0314,)
     parser.add_argument('--k', type=int, default=7,)
     parser.add_argument('--alpha', type=float, default=0.00784,)
-    parser.add_argument('--batch_size', type=int, default=128,)
     args = parser.parse_args()
 
     os.makedirs(args.save_dir, exist_ok=True)
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    cudnn.benchmark = True
-
+    
     main(args)

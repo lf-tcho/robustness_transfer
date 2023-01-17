@@ -104,6 +104,11 @@ def train_classifier(model, dataset, train_sampler, test_sampler,
     print('val_loss = ', loss_total/num_total)
     return model, loss_arr
 
+def load_model(ckpt_path, model):
+    """Load latest model and get epoch."""
+    model.load_state_dict(torch.load(ckpt_path+'.pth'))
+    return model
+
 def main(args):
     """Command line tool to run experiment and evaluation."""
 
@@ -125,7 +130,14 @@ def main(args):
 
     # Initialize a core encoder network on which the classifier will be added
     supervised_model = Model_dsprites()
-
+    supervised_model = load_model(f"{args.ckpt_dir}/{args.target_latent}", supervised_model)
+    
+    for p in supervised_model.parameters(): p.requires_grad = False
+    supervised_model.fc.weight.requires_grad = True
+    supervised_model.fc.bias.requires_grad = True
+    for p in supervised_model.parameters():
+        print(p.requires_grad)
+ 
     model, _ = train_classifier(
         model=supervised_model,
         dataset=dSprites_torchdataset,
@@ -140,6 +152,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', type=str, default="bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp")
+    parser.add_argument('--ckpt_dir', type=str, default="models/dsprites/Linf")
     parser.add_argument('--target_latent', type=str, default="scale")
     parser.add_argument('--num_epochs', type=int, default=30,
             help="# of epochs")

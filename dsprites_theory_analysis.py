@@ -150,7 +150,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', type=str, default="bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
-            help="name od the experiment/ save dir")
+            help="name od the experiment/save dir")
     parser.add_argument('--dataset_name', type=str, default="dsprites",
             help="name of the dataset")
     parser.add_argument('--target_latent', type=str, default="scale")
