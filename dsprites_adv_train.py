@@ -1,8 +1,6 @@
-<<<<<<< HEAD
-=======
-'''
+"""
 Reference : https://github.com/ndb796/Pytorch-Adversarial-Training-CIFAR/blob/master/pgd_adversarial_training.py
-'''
+"""
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,7 +10,6 @@ import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
 
->>>>>>> 80b047704fd1beb162ad2643f57285bc171bdd2d
 import os
 import warnings
 import argparse
@@ -206,10 +203,7 @@ if __name__ == "__main__":
 
     os.makedirs(args.save_dir, exist_ok=True)
     args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-<<<<<<< HEAD
-    
-=======
+
     cudnn.benchmark = True
 
->>>>>>> 80b047704fd1beb162ad2643f57285bc171bdd2d
     main(args)
