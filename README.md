@@ -20,27 +20,21 @@ python dsprites_adv_train.py --target_latent orientation
 python dsprites_lp.py --target_latent orientation
 ```
 
-## Evaluating on dsprites
+## Evaluating on dsprites (attack on the representation function)
 
 ```bash
-python dsprites_theory_analysis.py --target_latent orientation
+python dsprites_theory_analysis-attack_feat2.py --target_latent orientation
 ```
 
-# DSprites Dataset
-## Training (from scratch) on dsprites
+# CIFAR Dataset
+## Linear Probing / Finetuning on CIFAR10
 
 ```bash
-python dsprites_adv_train.py --target_latent orientation
+python cifar_lp.py
 ```
 
-## Linear Probing / Finetuning on dsprites
+## Evaluating on CIFAR10 (attack on the representation function)
 
 ```bash
-python dsprites_lp.py --target_latent orientation
-```
-
-## Evaluating on dsprites
-
-```bash
-python dsprites_theory_analysis.py --target_latent orientation
+python cifar_theory_analysis-attack_feat2.py 
 ```
