@@ -1,5 +1,3 @@
-## Th3.2 on dsprites(regression)
-
 ## Setup
 ## Install dependencies
 
