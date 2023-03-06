@@ -56,7 +56,8 @@ class Cifar100RepresentationAnalysis(Experiment):
             threat_model="Linf",
         )
         # Change output size of model to 10 classes
-        model.fc = torch.nn.Linear(640, self.num_categories)
+        if self.num_categories > 0:
+            model.fc = torch.nn.Linear(640, self.num_categories)
         return model
 
     def get_model_rep(self):
@@ -93,12 +94,13 @@ class Cifar100RepresentationAnalysis(Experiment):
         model.eval()
 
         # Change output size of model to 10 classes
-        model.fc = torch.nn.Linear(640, self.num_categories)
+        if self.num_categories > 0:
+            model.fc = torch.nn.Linear(640, self.num_categories)
         return model
 
     def run(self, device: torch.device = torch.device("cuda")):
         """Run experiment."""
-        train_dataloader, eval_dataloader = self.get_dataloaders()
+        eval_dataloader = self.get_dataloaders(train=False)
         # choose training or validation dataset
         data_loader = eval_dataloader
 
@@ -151,7 +153,7 @@ class Cifar100RepresentationAnalysis(Experiment):
                   "epsilon": self.epsilon[0]}
         print(output)
 
-        with open(self.experiment_folder / f"attack_on_representation_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        with open(self.experiment_folder / f"attack_on_representation_on_val_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json", "w") as file:
             json.dump(output, file)
 
     # FGSM attack code
@@ -164,7 +166,6 @@ class Cifar100RepresentationAnalysis(Experiment):
         perturbed_image = torch.clamp(perturbed_image, -1, 1)
         # Return the perturbed image
         return perturbed_image
-
 
     def load_model(self, model):
         """Load latest model and get epoch."""
@@ -179,24 +180,27 @@ class Cifar100RepresentationAnalysis(Experiment):
             print(f"Model checkpoint {ckpt} loaded.")
             return model, latest_epoch, self.experiment_folder / ckpt
         else:
-            return -1
+            print(f"No model checkpoint loaded.")
+            return model, -1, self.experiment_folder
 
-    def get_dataloaders(self):
+    def get_dataloaders(self, train=True):
         """Get train and eval dataloader."""
-        train_dataloader = get_dataloader(
-            self.dataset_name,
-            True,
-            batch_size=self.batch_size,
-            shuffle=True,
-            transforms=self.transforms(),
-        )
         eval_dataloader = get_dataloader(
             self.dataset_name,
             False,
             batch_size=self.batch_size,
             transforms=self.transforms()
         )
-        return train_dataloader, eval_dataloader
+        if train:
+            train_dataloader = get_dataloader(
+                self.dataset_name,
+                True,
+                batch_size=self.batch_size,
+                shuffle=True,
+                transforms=self.transforms(),
+            )
+            return train_dataloader, eval_dataloader
+        return eval_dataloader
 
     def transforms(self):
         """Load transforms depending on training or evaluation dataset."""
@@ -207,9 +211,9 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100RepresentationAnalysis(
-        experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp",
-        num_categories=6,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="intel_image"
+        experiment_name=".",
+        num_categories=0,  # cifar10=10, fashion=10, intel_image=6
+        dataset_name="cifar100"
     )
     experiment.run(torch.device("cuda"))
 

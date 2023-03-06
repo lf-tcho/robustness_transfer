@@ -58,7 +58,8 @@ class ImageNetRepresentationAnalysis(Experiment):
             threat_model="Linf",
         )
         # Change output size of model to 10 classes
-        model.fc = torch.nn.Linear(640, self.num_categories)
+        if self.num_categories > 0:
+            model.fc = torch.nn.Linear(640, self.num_categories)
         return model
 
     def get_model_rep(self):
@@ -108,7 +109,8 @@ class ImageNetRepresentationAnalysis(Experiment):
         model.eval()
 
         # Change output size of model to num_category classes
-        model.model.fc = torch.nn.Linear(2048, self.num_categories)
+        if self.num_categories > 0:
+            model.model.fc = torch.nn.Linear(2048, self.num_categories)
         return model
 
     def run(self, device: torch.device = torch.device("cuda")):
@@ -180,7 +182,6 @@ class ImageNetRepresentationAnalysis(Experiment):
         # Return the perturbed image
         return perturbed_image
 
-
     def load_model(self, model):
         """Load latest model and get epoch."""
         ckpts = sorted(
@@ -194,7 +195,8 @@ class ImageNetRepresentationAnalysis(Experiment):
             print(f"Model checkpoint {ckpt} loaded.")
             return model, latest_epoch, self.experiment_folder / ckpt
         else:
-            return -1
+            print(f"No model checkpoint loaded.")
+            return model, -1, self.experiment_folder
 
     def get_dataloaders(self):
         """Get train and eval dataloader."""
@@ -222,9 +224,9 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = ImageNetRepresentationAnalysis(
-        experiment_name="__imagenet_bs_32_ds_intel_image_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
-        num_categories=6,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="intel_image",
+        experiment_name=".",
+        num_categories=0,  # cifar10=10, fashion=10, intel_image=6
+        dataset_name="imagenet",
         epsilon=[4 / 255],  # 1/255 instead of 8/255 for cifar10 and fashion, 4/255 for intel
         batch_size=16
     )

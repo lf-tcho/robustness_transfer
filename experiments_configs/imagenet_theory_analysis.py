@@ -8,6 +8,7 @@ import torch.nn as nn
 from ..src.trainer import Trainer
 from ..src.experiment import Experiment
 import torch
+import numpy as np
 
 from torchvision.transforms import Normalize, Resize
 import foolbox as fb
@@ -58,7 +59,8 @@ class ImageNetTheoryAnalysis(Experiment):
             threat_model="Linf",
         )
         # Change output size of model to 10 classes
-        model.model.fc = torch.nn.Linear(2048, self.num_categories)
+        if self.num_categories > 0:
+            model.model.fc = torch.nn.Linear(2048, self.num_categories)
         return model
 
     def get_model_rep(self):
@@ -109,7 +111,8 @@ class ImageNetTheoryAnalysis(Experiment):
         model.eval()
 
         # Change output size of model to num_category classes
-        model.model.fc = torch.nn.Linear(2048, self.num_categories)
+        if self.num_categories > 0:
+            model.model.fc = torch.nn.Linear(2048, self.num_categories)
         return model
 
     def run(self, device: torch.device = torch.device("cuda")):
@@ -119,21 +122,34 @@ class ImageNetTheoryAnalysis(Experiment):
         # look at the weight matrix of last linear layer
         w_matrix = model.model.fc.weight
         mean_max_dif = 0
+        max_dif_list = []
+        wi_norm_list = []
         for i in range(w_matrix.shape[0]):
             max_dif = 0
+            temp_list = []
             for j in range(w_matrix.shape[0]):
                 temp = torch.norm(w_matrix[j, :] - w_matrix[i, :], 'fro').item()
+                temp_list.append(temp)
                 if temp > max_dif:
                     max_dif = temp
+            #print("diff from W_", i, ":", temp_list)
+            wi_norm_list.append(torch.norm(w_matrix[i, :]).item())
+            max_dif_list.append(max_dif)
             mean_max_dif += max_dif
+        #print("norm of all  W_i:", wi_norm_list)
         mean_max_dif /= w_matrix.shape[0]
         spectral_norm = torch.linalg.matrix_norm(w_matrix, 2).item()
         frobenius_norm = torch.linalg.matrix_norm(w_matrix, 'fro').item()
         output = {"folder checkpoint": str(folder_ckpt), "spectral_norm": spectral_norm,
-                  "frobenius_norm": frobenius_norm, "Mean_Max_dif": mean_max_dif}
+                  "frobenius_norm": frobenius_norm, "mean_L2_norm_Wi": sum(wi_norm_list)/len(wi_norm_list),
+                  "Mean_Max_dif": mean_max_dif,
+                  "Max_Max_dif": max(max_dif_list),
+                  "Min_Max_dif": min(max_dif_list)}
         print(output)
+        # with open(self.experiment_folder / f"theory_linear_layer constants_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        #     json.dump(output, file)
 
-        train_dataloader, eval_dataloader = self.get_dataloaders()
+        eval_dataloader = self.get_dataloaders(train=False)
         # choose training or validation dataset
         data_loader = eval_dataloader
         model.eval()
@@ -148,8 +164,13 @@ class ImageNetTheoryAnalysis(Experiment):
         cross_entropy = 0
         cross_entropy_adv = 0
         feature_difference = 0
+        relative_feature_difference = 0
         effective_w_difference = 0
         effective_w_difference_on_f = 0
+        softmax_feature_diff = 0
+        thm_41_dif = 0
+        thm_41_acc = 0
+        thm_41_contradiction = 0
         count = 0
         l_inf_pgd = fb.attacks.LinfPGD(steps=20)
 
@@ -165,36 +186,76 @@ class ImageNetTheoryAnalysis(Experiment):
                 cross_entropy += nn.CrossEntropyLoss()(model_output[0], labels.to(self.device)).item()
                 cross_entropy_adv += nn.CrossEntropyLoss()(model_output_adv[0], labels.to(self.device)).item()
                 feature_difference += torch.mean(torch.norm(model_output[1] - model_output_adv[1], dim=1)).item()
+                relative_feature_difference += torch.mean(
+                    torch.norm(model_output[1] - model_output_adv[1], dim=1) / torch.norm(model_output[1], dim=1)
+                ).item()
                 for i in range(batch_size):
-                    effective_w_difference += torch.norm(
-                        w_matrix[labels[i], :] -
-                        torch.matmul(
-                            torch.nn.functional.softmax(model_output_adv[0], dim=1)[i, :],
-                            w_matrix
-                        )
-                    ).item() / batch_size
-                    effective_w_difference_on_f += torch.norm(
-                        w_matrix[labels[i], :] -
-                        torch.matmul(
-                            torch.nn.functional.softmax(model_output_adv[0], dim=1)[i, :],
-                            w_matrix
-                        )
-                    ).item() * torch.norm(model_output[1] - model_output_adv[1], dim=1)[i].item() / batch_size
+                    min_lhs = np.inf
+                    for j in range(self.num_categories):
+                        if j != labels[i]:
+                            temp_lhs = torch.norm(model_output[0][i, labels[i]] - model_output[0][i, j]) \
+                                       / torch.norm(w_matrix[labels[i], :] - w_matrix[j, :])
+                            if temp_lhs < min_lhs:
+                                min_lhs = temp_lhs
+                    temp_dif = min_lhs.item() - torch.mean(
+                        torch.norm(model_output[1] - model_output_adv[1], dim=1)).item()
+                    thm_41_dif += temp_dif / batch_size
+                    temp_acc = 1 if (temp_dif > 0 and torch.argmax(model_output[0][i, :]) == labels[i]) else 0
+                    thm_41_acc += temp_acc / batch_size
+                    temp_contra = 1 if (temp_dif >= 0 and torch.argmax(model_output_adv[0][i, :]) != labels[i] and
+                                        torch.argmax(model_output[0][i, :]) == labels[i]) else 0
+                    if temp_contra == 1:
+                        print("---------------------------------")
+                        print(labels[i], model_output_adv[0][i, :])
+                        print(temp_dif, min_lhs.item(),
+                              torch.mean(torch.norm(model_output[1] - model_output_adv[1], dim=1)).item())
+                        print("---------------------------------")
+                    thm_41_contradiction += temp_contra / batch_size
+                #     effective_w_difference += torch.norm(
+                #             w_matrix[labels[i], :] -
+                #             torch.matmul(
+                #                 torch.nn.functional.softmax(model_output_adv[0], dim=1)[i, :],
+                #                 w_matrix
+                #             )
+                #     ).item() / batch_size
+                #     effective_w_difference_on_f += torch.norm(
+                #         w_matrix[labels[i], :] -
+                #         torch.matmul(
+                #             torch.nn.functional.softmax(model_output_adv[0], dim=1)[i, :],
+                #             w_matrix
+                #         )
+                #     ).item() * torch.norm(model_output[1] - model_output_adv[1], dim=1)[i].item() / batch_size
+                #     softmax_feature_diff += (
+                #         1-torch.nn.functional.softmax(model_output_adv[0], dim=1)[i, labels[i]].item()
+                #     ) * torch.norm(model_output[1] - model_output_adv[1], dim=1)[i].item() / batch_size
             count += 1
         cross_entropy /= count
         cross_entropy_adv /= count
         feature_difference /= count
+        relative_feature_difference /= count
         effective_w_difference /= count
         effective_w_difference_on_f /= count
+        softmax_feature_diff /= count
+        thm_41_dif /= count
+        thm_41_acc /= count
+        thm_41_contradiction /= count
         accuracy = accuracy / len(data_loader.dataset)
         robust_accuracy = robust_accuracy / len(data_loader.dataset)
         output.update({"accuracy": accuracy, "robust_accuracy": robust_accuracy, "cross_entropy": cross_entropy,
                        "cross_entropy_adv": cross_entropy_adv, "feature_difference": feature_difference,
-                       "effective_w_difference": effective_w_difference,
-                       "effective_w_difference_on_f": effective_w_difference_on_f, "epsilon": self.epsilon[0]})
+                       "relative_feature_difference": relative_feature_difference,
+                       "thm_41_dif": thm_41_dif,
+                       "thm_41_acc": thm_41_acc,
+                       "thm_41_contradiction": thm_41_contradiction,
+                       # "effective_w_difference": effective_w_difference,
+                       # "effective_w_difference_on_f": effective_w_difference_on_f,
+                       # "softmax_feature_diff": softmax_feature_diff}
+                       })
         print(output)
 
-        with open(self.experiment_folder / f"theory_constants_on_val_{CKPT_NAME}{last_epoch}.json", "w") as file:
+        with open(
+                self.experiment_folder / f"theory_constants_on_val_with_thm4_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json",
+                "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
@@ -210,24 +271,27 @@ class ImageNetTheoryAnalysis(Experiment):
             print(f"Model checkpoint {ckpt} loaded.")
             return model, latest_epoch, self.experiment_folder / ckpt
         else:
-            return -1
+            print(f"No model checkpoint loaded.")
+            return model, -1, self.experiment_folder
 
-    def get_dataloaders(self):
+    def get_dataloaders(self, train=True):
         """Get train and eval dataloader."""
-        train_dataloader = get_dataloader(
-            self.dataset_name,
-            True,
-            batch_size=self.batch_size,
-            shuffle=True,
-            transforms=self.transforms(),
-        )
         eval_dataloader = get_dataloader(
             self.dataset_name,
             False,
             batch_size=self.batch_size,
             transforms=self.transforms()
         )
-        return train_dataloader, eval_dataloader
+        if train:
+            train_dataloader = get_dataloader(
+                self.dataset_name,
+                True,
+                batch_size=self.batch_size,
+                shuffle=True,
+                transforms=self.transforms(),
+            )
+            return train_dataloader, eval_dataloader
+        return eval_dataloader
 
     def transforms(self):
         """Load transforms depending on training or evaluation dataset."""
@@ -238,10 +302,10 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = ImageNetTheoryAnalysis(
-        experiment_name="__imagenet_bs_32_ds_intel_image_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
-        num_categories=6,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="intel_image",
-        epsilon=[4/255],  # instead of 8/255
+        experiment_name="__imagenet_bs_32_ds_fashion_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
+        num_categories=10,  # cifar10=10; 1/255, fashion=10; 1/255, intel_image=6; 4/255 also image_net
+        dataset_name="fashion",
+        epsilon=[1/255],  # instead of 8/255
         batch_size=32
     )
     experiment.run(torch.device("cuda"))

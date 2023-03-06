@@ -8,7 +8,7 @@ import torch
 from typing import List
 from ..src.utils import download_url, unzip, copy_all_files
 import glob
-from torchvision.io import read_image
+from torchvision.io import read_image, ImageReadMode
 from torch.utils.data import Dataset
 from PIL import Image
 import numpy as np
@@ -121,6 +121,50 @@ class IntelImageDataset(Dataset):
                         str(Path(DATA_DIR))])
         unzip(Path(DATA_DIR) / "intel-image-classification.zip", cls.dataset_folder)
 
+class ImageNetDataset(Dataset):
+    """Intel image dataset."""
+   # category2id = {"buildings": 0, "forest": 1, "glacier": 2, "mountain": 3, "sea": 4, "street": 5}
+    """Mapping from category name to label id."""
+    dataset_folder = Path(DATA_DIR) / "imagenet-test"
+    """Folder to store images in."""
+
+    def __init__(self, train: bool = False, transform: List = None):
+        """Initilize dataset.
+
+        :param train: If True train set is return, else test set
+        :param transform: Transfroms to apply to images
+        """
+        self.download()
+        self.transform = transform
+        if train:
+            path_imgs = self.dataset_folder# / "seg_train" / "seg_train"
+        else:
+            path_imgs = self.dataset_folder# / "seg_test" / "seg_test"
+        self.img_list = sorted(list(path_imgs.glob('*.jpeg')))
+
+    def __len__(self):
+        return len(self.img_list)
+
+    def __getitem__(self, idx):
+        img_path = self.img_list[idx]
+        img = read_image(str(img_path), mode=ImageReadMode.RGB).permute(1, 2, 0).numpy()
+        #img_category = img_path.parent.name
+        #label = self.category2id[img_category]
+        label = 0
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+    @classmethod
+    def download(cls):
+        """Download dataset."""
+        if cls.dataset_folder.exists():
+            print("Dataset already downloaded.")
+            return
+        else:
+            print("No dataset downloaded")
+            return
+
 class Fashion(datasets.FashionMNIST):
 
     def __getitem__(self, index: int):
@@ -154,6 +198,8 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
         dataset = datasets.CIFAR10(root=DATA_DIR, train=train, download=True)
     if dataset_name == "cifar100":
         dataset = datasets.CIFAR100(root=DATA_DIR, train=train, download=True)
+    if dataset_name == "imagenet":
+        dataset = ImageNetDataset(train=train)
     if dataset_name == "fashion":
         dataset = Fashion(root=DATA_DIR, train=train, download=True)
     if dataset_name == "weather":

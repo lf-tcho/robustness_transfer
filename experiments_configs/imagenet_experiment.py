@@ -75,11 +75,11 @@ class ImageNetExperiment(Experiment):
 
     def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
-        model = self.get_model()
+        sel.model = self.get_model()
         train_dataloader, eval_dataloader = self.get_dataloaders()
-        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9, weight_decay=self.weight_decay)
+        optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9, weight_decay=self.weight_decay)
         trainer = Trainer(
-            model,
+            self.model,
             train_dataloader,
             eval_dataloader,
             nn.CrossEntropyLoss(),
@@ -91,6 +91,21 @@ class ImageNetExperiment(Experiment):
             lr_scheduler=self.get_lr_scheduler(optimizer, len(train_dataloader)),
         )
         trainer.train()
+
+    def custom_loss(self, model_output, label):
+        w_matrix = self.model.model.fc.weight
+        temp_list = []
+        for j in range(label.shape[0]):
+            temp_list_min = []
+            for i in range(w_matrix.shape[0]):
+                temp_norm = torch.norm(w_matrix[label[j], :] - w_matrix[i, :], 'fro').item()
+                temp = torch.abs(model_output[j, label[j]] - model_output[j, i])
+                temp_list_min.append(temp/temp_norm)
+            temp_list.append(min(temp_list_min))
+        print("tenp_list", temp_list)
+        print("cross", nn.CrossEntropyLoss()(model_output, label))
+        return nn.CrossEntropyLoss()(model_output, label) - \
+               torch.mean(torch.tensor(temp_list))
 
     def get_dataloaders(self):
         """Get train and eval dataloader."""

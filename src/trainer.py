@@ -75,6 +75,7 @@ class Trainer:
                 loss.backward()
                 optimizer.step()
                 writer.add_scalar("Loss/train", loss.item(), iteration)
+                writer.add_scalar("CE/train", metrics["cross_entropy"].item(), iteration)
                 writer.add_scalar(
                     "Accuracy/train", metrics["accuracy"].item(), iteration
                 )
@@ -112,6 +113,7 @@ class Trainer:
         metrics = {}
         model_output = self.model(inputs.to(self.device))
         metrics["loss"] = self.loss(model_output, labels.to(self.device))
+        metrics["cross_entropy"] = nn.CrossEntropyLoss()(model_output, labels.to(self.device))
         _, indices = model_output.max(dim=1)
         metrics["accuracy"] = torch.sum(indices == labels) / inputs.shape[0]
         return metrics

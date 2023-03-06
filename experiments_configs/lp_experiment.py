@@ -50,6 +50,7 @@ class LpExperiment(Experiment):
         self.lr_scheduler = lr_scheduler
         self.dataset_name = dataset_name
         self.num_categories = num_categories
+        self.model = None
 
     def get_model(self):
         """Get model."""
@@ -74,14 +75,14 @@ class LpExperiment(Experiment):
 
     def run(self, device: torch.device = torch.device("cpu")):
         """Run experiment."""
-        model = self.get_model()
+        self.model = self.get_model()
         train_dataloader, eval_dataloader = self.get_dataloaders()
-        optimizer = optim.SGD(model.parameters(), lr=self.learning_rate, momentum=0.9)
+        optimizer = optim.SGD(self.model.parameters(), lr=self.learning_rate, momentum=0.9)
         trainer = Trainer(
-            model,
+            self.model,
             train_dataloader,
             eval_dataloader,
-            nn.CrossEntropyLoss(),
+            self.custom_loss, #nn.CrossEntropyLoss(),
             self.epochs,
             optimizer,
             self.experiment_name,
@@ -90,6 +91,20 @@ class LpExperiment(Experiment):
             lr_scheduler=self.get_lr_scheduler(optimizer, len(train_dataloader))
         )
         trainer.train()
+
+    def custom_loss(self, model_output, label):
+        w_matrix = self.model.fc.weight
+        temp_list = []
+        for j in range(label.shape[0]):
+            # temp_list_min = []
+            for i in range(w_matrix.shape[0]):
+                if i != label[j]:
+                    temp_norm = torch.norm(w_matrix[label[j], :] - w_matrix[i, :], 'fro').item()
+                    #if temp_norm > 0:
+                    #    temp = torch.abs(model_output[j, label[j]] - model_output[j, i])
+                    temp_list.append(temp_norm)
+            # temp_list.append(min(temp_list_min))
+        return nn.CrossEntropyLoss()(model_output, label) - torch.mean(torch.tensor(temp_list))
 
     def get_dataloaders(self):
         """Get train and eval dataloader."""
@@ -202,7 +217,7 @@ def main():
     parser.add_argument("-eps", "--epochs", default=20, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.01, type=float)
     parser.add_argument("-device", "--device", default="cuda")
-    parser.add_argument("-method", "--tf_method", default="lp", type=str)
+    parser.add_argument("-method", "--tf_method", default="ft", type=str)
     parser.add_argument("-eval", "--eval", default=1, type=int)
     parser.add_argument("-train", "--train", default=1, type=int)
     parser.add_argument("-evaleps", "--evaleps", default=19, type=int)
@@ -223,7 +238,7 @@ def main():
     if args.tf_method == "lp_ft":
         experiment_args["lpeps"] = args.lp_epochs
     experiment = LpExperiment(
-        get_experiment_name(experiment_args),
+        "test_FT2_"+get_experiment_name(experiment_args),
         args.batch_size,
         args.epochs,
         args.learning_rate,
