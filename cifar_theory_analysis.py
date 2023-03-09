@@ -22,7 +22,7 @@ import os
 
 CKPT_NAME = "ckpt"
 
-class DSpritesTheoryAnalysis(Experiment):
+class TheoryAnalysis(Experiment):
     """Experiment for linear probing."""
 
     def __init__(
@@ -30,19 +30,16 @@ class DSpritesTheoryAnalysis(Experiment):
         experiment_name,
         batch_size: int = 32,
         dataset_name: str = "dsprites",
-        target_latent="orientation",
         device: torch.device = torch.device("cuda"),
-        epsilon=[5],
-        # epsilon=[8 / 255],
+        epsilon=[8 / 255],
     ):
         """Initilize ImageNetExperiment.
 
         :param experiment_name: Name of experiment
         """
         super().__init__(experiment_name)
-        self.target_latent = target_latent
         self.experiment_folder = Path("./experiments") / experiment_name
-        self.ckpt_path =  f"{self.experiment_folder}/models/{target_latent}_{args.model_type}.pth"
+        self.ckpt_path =  f"{self.experiment_folder}/models/cifar100-cifar10_{args.model_type}.pth"
         self.results_dir = f"{self.experiment_folder}/results"
         # self.model = None
         # self.model_rep = None
@@ -51,15 +48,26 @@ class DSpritesTheoryAnalysis(Experiment):
         self.device = device
         self.epsilon = epsilon
 
-    def get_model(self):
+    def get_model(self, model_name="Addepalli2022Efficient_WRN_34_10"):
         """Get model."""
-        model = Model_dsprites(fc_out_size=len(self.target_latent))
+        from robustbench.utils import load_model
+        model = load_model(
+            model_name=model_name,
+            dataset="cifar100",
+            threat_model="Linf",
+        )
+        # Change output size of model to 10 classes
+        model.fc = torch.nn.Linear(640, 10)
         return model
 
     def run(self, device: torch.device = torch.device("cuda")):
         """Run experiment."""
         model = self.get_model().to(device)
         model = self.load_model(model)
+        # feature extractor model
+        modules = list(model.children())[:-1]
+        model_feat = nn.Sequential(*modules)
+        
         # look at the weight matrix of last linear layer
         w_matrix = model.fc.weight
         spectral_norm = torch.linalg.matrix_norm(w_matrix, 2).item()
@@ -70,7 +78,7 @@ class DSpritesTheoryAnalysis(Experiment):
         # choose training or validation dataset
         data_loader = eval_dataloader
         model.eval()
-        fmodel_feat = fb.PyTorchModel(model.feats, bounds=(-1.0, 1.0))
+        fmodel = fb.PyTorchModel(model, bounds=(-1.0, 1.0))
 
         loss = 0
         loss_adv = 0
@@ -78,23 +86,24 @@ class DSpritesTheoryAnalysis(Experiment):
         c2 = float("-inf")
         count = 0
         l_inf_pgd = fb.attacks.LinfPGD(steps=20) 
-        for inputs, labels, idx in tqdm(data_loader):
+        for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
-            inputs = inputs.resize(inputs.size(0), 1, 64, 64)
-            with torch.no_grad(): frep = model.get_features(inputs.to(self.device))
+            inputs = inputs.resize(inputs.size(0), 3, 32, 32)
             batch_size = inputs.shape[0]
 
-            criterion = fb.criteria.NormDiff(frep)
-            _, adv_batch, success = l_inf_pgd(fmodel_feat, inputs, criterion=criterion, epsilons=self.epsilon)
-            adv_batch[0] = adv_batch[0].resize(inputs.size(0), 1, 64, 64)
+            criterion = fb.criteria.Misclassification(labels)
+            _, adv_batch, success = l_inf_pgd(fmodel, inputs, criterion=criterion, epsilons=self.epsilon)
+            adv_batch[0] = adv_batch[0].resize(inputs.size(0), 3, 32, 32)
             with torch.no_grad():
-                frep_adv = model.get_features(adv_batch[0].to(self.device))
+                frep = model_feat(inputs.to(self.device))
+                frep_adv = model_feat(adv_batch[0].to(self.device))
                 fx = model(inputs.to(self.device))
                 fx_adv = model(adv_batch[0].to(self.device))
-                loss += nn.functional.mse_loss(fx, labels.to(self.device).to(torch.float)).item()
-                loss_adv += nn.functional.mse_loss(fx_adv, labels.to(self.device).to(torch.float)).item()
+
+                loss += nn.functional.cross_entropy(fx, labels.to(self.device)).item()
+                loss_adv += nn.functional.cross_entropy(fx_adv, labels.to(self.device)).item()
                 feature_difference += torch.mean(torch.linalg.norm((frep_adv - frep), dim=1)).item()
-                c2 = max(c2, nn.functional.mse_loss(fx, labels.to(self.device).to(torch.float)).item())
+                c2 = max(c2, nn.functional.cross_entropy(fx, labels.to(self.device)).item())
             count += 1
         loss /= count
         loss_adv /= count
@@ -103,7 +112,7 @@ class DSpritesTheoryAnalysis(Experiment):
                        "C2": c2})
         print(output)
         
-        with open(self.experiment_folder / f"result_th3_2_attack_feat2_{self.target_latent}_{args.model_type}_reg_on_val.json", "w") as file:
+        with open(self.experiment_folder / f"result_th3_2_cifar100-cifar10_{args.model_type}_on_val.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
@@ -114,17 +123,17 @@ class DSpritesTheoryAnalysis(Experiment):
     def get_dataloaders(self):
         """Get train and eval dataloader."""
         train_dataloader = get_dataloader(
-            self.target_latent,
+            '',
             self.dataset_name,
             True,
-            batch_size=4096,
+            batch_size=1,
             shuffle=True,
         )
         eval_dataloader = get_dataloader(
-            self.target_latent,
+            '',
             self.dataset_name,
             False,
-            batch_size=4096,
+            batch_size=1,
         )
         return train_dataloader, eval_dataloader
 
@@ -132,23 +141,20 @@ class DSpritesTheoryAnalysis(Experiment):
 def main(args):
     """Command line tool to run experiment and evaluation."""
 
-    experiment = DSpritesTheoryAnalysis(
+    experiment = TheoryAnalysis(
         experiment_name=args.exp_name,
         dataset_name=args.dataset_name,
-        target_latent=args.target_latent,
     )
     experiment.run(torch.device("cuda"))
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--exp_name', type=str, default="bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
+    parser.add_argument('--exp_name', type=str, default="bs_128_ds_cifar100-cifar10_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
             help="name od the experiment/save dir")
-    parser.add_argument('--dataset_name', type=str, default="dsprites",
+    parser.add_argument('--dataset_name', type=str, default="cifar10",
             help="name of the dataset")
-    parser.add_argument('--target_latent', type=str, default="orientation")
     parser.add_argument('--model_type', type=str, choices=["lp", "ft"], default="lp")
     args = parser.parse_args()
-    args.target_latent = args.target_latent.split(', ')
 
     main(args)
