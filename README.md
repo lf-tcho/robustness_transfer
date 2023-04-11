@@ -18,7 +18,7 @@ python dsprites_adv_train.py --target_latent orientation
 python dsprites_lp.py --target_latent orientation --train_only_fclayer False
 ```
 
-## Evaluating on dsprites
+### Evaluating on dsprites
 
 Attack on the logits (output from last layer)
 ```bash
