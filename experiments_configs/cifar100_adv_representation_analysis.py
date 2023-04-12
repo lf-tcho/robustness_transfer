@@ -33,6 +33,7 @@ class Cifar100RepresentationAnalysis(Experiment):
         dataset_name: str = "cifar10",
         device: torch.device = torch.device("cuda"),
         epsilon=[8 / 255],
+        attack_type="linf_pgd"
     ):
         """Initilize ImageNetExperiment.
 
@@ -47,6 +48,7 @@ class Cifar100RepresentationAnalysis(Experiment):
         self.batch_size = batch_size
         self.device = device
         self.epsilon = epsilon
+        self.attack_type = attack_type
 
     def get_model(self):
         """Get model."""
@@ -127,7 +129,10 @@ class Cifar100RepresentationAnalysis(Experiment):
             # Collect datagrad
             data_grad = inputs.grad.data
             # Call FGSM Attack
-            perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            if self.attack_type=="fgsm":
+                perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            elif self.attack_type=="linf_pgd":
+                perturbed_inputs = self.linf_pgd_attack(model_rep, inputs, labels, self.epsilon[0], num_steps=10, step_size=0.01)
             # Re-evaluate the perturbed image
             adv_output = model_rep(perturbed_inputs.to(self.device))
             feature_difference_up += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
@@ -140,7 +145,10 @@ class Cifar100RepresentationAnalysis(Experiment):
             # Collect datagrad
             data_grad = inputs.grad.data
             # Call FGSM Attack
-            perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            if self.attack_type=="fgsm":
+                perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            elif self.attack_type=="linf_pgd":
+                perturbed_inputs = self.linf_pgd_attack(inputs, self.epsilon[0], data_grad)
             # Re-evaluate the perturbed image
             adv_output = model_rep(perturbed_inputs.to(self.device))
             feature_difference_down += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
@@ -162,11 +170,26 @@ class Cifar100RepresentationAnalysis(Experiment):
         sign_data_grad = data_grad.sign()
         # Create the perturbed image by adjusting each pixel of the input image
         perturbed_image = image + epsilon * sign_data_grad
-        # Adding clipping to maintain [0,1] range
+        # Adding clipping to maintain [-1,1] range
         perturbed_image = torch.clamp(perturbed_image, -1, 1)
         # Return the perturbed image
         return perturbed_image
 
+    # LinfPGD Attack
+    def linf_pgd_attack(self, model, image, true_label, epsilon, num_steps=10, step_size=0.01):
+        perturbed_image = image.clone().detach().requires_grad_(True)
+        for i in range(num_steps):
+            model.zero_grad()
+            output = model(perturbed_image.to(self.device))
+            loss = nn.CrossEntropyLoss()(output, true_label)
+            loss.backward()
+            perturbed_image = perturbed_image + step_size * perturbed_image.grad.detach().sign()
+            # limit the perturbation 
+            perturbed_image = torch.max(torch.min(perturbed_image, image + epsilon), image - epsilon)
+            # Adding clipping to maintain [-1,1] range
+            perturbed_image = torch.clamp(perturbed_image, -1, 1)
+        return perturbed_image
+    
     def load_model(self, model):
         """Load latest model and get epoch."""
         ckpts = sorted(
