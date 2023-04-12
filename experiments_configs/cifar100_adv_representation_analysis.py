@@ -1,18 +1,19 @@
 import argparse
 from math import ceil
-from ..src.dataloader import get_dataloader
+from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn as nn
-from ..src.trainer import Trainer
-from ..src.experiment import Experiment
+import torch.nn.functional as F
+from src.trainer import Trainer
+from src.experiment import Experiment
 import torch
 
 from torchvision.transforms import Normalize, Resize
 import foolbox as fb
 from tqdm import tqdm
-from ..src.models import WideResNetForLwF, WideResNetForAdvRep
+from src.models import WideResNetForLwF, WideResNetForAdvRep
 from robustbench.utils import download_gdrive, rm_substr_from_state_dict, load_model
 import json
 from pathlib import Path
@@ -148,7 +149,7 @@ class Cifar100RepresentationAnalysis(Experiment):
             if self.attack_type=="fgsm":
                 perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
             elif self.attack_type=="linf_pgd":
-                perturbed_inputs = self.linf_pgd_attack(inputs, self.epsilon[0], data_grad)
+                perturbed_inputs = self.linf_pgd_attack(model_rep, inputs, labels, self.epsilon[0], num_steps=10, step_size=0.01)
             # Re-evaluate the perturbed image
             adv_output = model_rep(perturbed_inputs.to(self.device))
             feature_difference_down += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
@@ -177,15 +178,17 @@ class Cifar100RepresentationAnalysis(Experiment):
 
     # LinfPGD Attack
     def linf_pgd_attack(self, model, image, true_label, epsilon, num_steps=10, step_size=0.01):
-        perturbed_image = image.clone().detach().requires_grad_(True)
+        perturbed_image = image.detach().clone()
         for i in range(num_steps):
+            perturbed_image.requires_grad = True 
             model.zero_grad()
             output = model(perturbed_image.to(self.device))
-            loss = nn.CrossEntropyLoss()(output, true_label)
+            loss = F.cross_entropy(output, true_label, reduction="sum")
             loss.backward()
-            perturbed_image = perturbed_image + step_size * perturbed_image.grad.detach().sign()
+            perturbed_image = perturbed_image + step_size * perturbed_image.grad.data.sign()
             # limit the perturbation 
             perturbed_image = torch.max(torch.min(perturbed_image, image + epsilon), image - epsilon)
+            perturbed_image = perturbed_image.detach()
             # Adding clipping to maintain [-1,1] range
             perturbed_image = torch.clamp(perturbed_image, -1, 1)
         return perturbed_image
