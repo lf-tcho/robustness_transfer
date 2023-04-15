@@ -260,10 +260,13 @@ class ImageNetTheoryAnalysis(Experiment):
 
     def load_model(self, model):
         """Load latest model and get epoch."""
-        ckpts = sorted(
-            list(self.experiment_folder.glob("*.pth")),
-            key=lambda x: int(x.stem.split("_")[-1]),
-        )
+        if self.num_categories > 0:
+            ckpts = sorted(
+                list(self.experiment_folder.glob("*.pth")),
+                key=lambda x: int(x.stem.split("_")[-1]),
+            )
+        else:
+            ckpts = None
         if ckpts:
             latest_epoch = int(ckpts[-1].stem.split("_")[-1])
             ckpt = f"{CKPT_NAME}_{latest_epoch}.pth"
@@ -302,10 +305,10 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = ImageNetTheoryAnalysis(
-        experiment_name="__imagenet_bs_32_ds_fashion_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
-        num_categories=10,  # cifar10=10; 1/255, fashion=10; 1/255, intel_image=6; 4/255 also image_net
-        dataset_name="fashion",
-        epsilon=[1/255],  # instead of 8/255
+        experiment_name=".",
+        num_categories=0,  # cifar10=10; 1/255, fashion=10; 1/255, intel_image=6; 4/255 also image_net
+        dataset_name="imagenet",
+        epsilon=[4/255],  # instead of 8/255
         batch_size=32
     )
     experiment.run(torch.device("cuda"))

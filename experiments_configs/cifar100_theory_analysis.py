@@ -37,6 +37,7 @@ class Cifar100TheoryAnalysis(Experiment):
         dataset_name: str = "cifar10",
         device: torch.device = torch.device("cuda"),
         epsilon=[8 / 255],
+        attack_type="linf_pgd",
     ):
         """Initilize ImageNetExperiment.
 
@@ -51,6 +52,7 @@ class Cifar100TheoryAnalysis(Experiment):
         self.batch_size = batch_size
         self.device = device
         self.epsilon = epsilon
+        self.attack_type = attack_type
 
     def get_model(self):
         """Get model."""
@@ -136,9 +138,9 @@ class Cifar100TheoryAnalysis(Experiment):
         # with open(self.experiment_folder / f"theory_linear_layer constants_{CKPT_NAME}{last_epoch}.json", "w") as file:
         #     json.dump(output, file)
 
-        eval_dataloader = self.get_dataloaders(train=False)
+        data_loader = self.get_dataloaders(train=False)  # data_loader, _ = self.get_dataloaders(train=True)
         # choose training or validation dataset
-        data_loader = eval_dataloader
+        # data_loader = eval_dataloader
 
         model.eval()
         fmodel = fb.PyTorchModel(model, bounds=(-1, 1))
@@ -159,13 +161,16 @@ class Cifar100TheoryAnalysis(Experiment):
         thm_41_acc = 0
         thm_41_contradiction = 0
         count = 0
-        l_inf_pgd = fb.attacks.LinfPGD(steps=20)
+        if self.attack_type == "linf_pgd":
+            attack = fb.attacks.LinfPGD(steps=20)
+        elif self.attack_type == "l2_pgd":
+            attack = fb.attacks.L2PGD(steps=20)
 
         for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             batch_size = inputs.shape[0]
             accuracy += fb.utils.accuracy(fmodel, inputs, labels) * batch_size
-            _, adv_batch, success = l_inf_pgd(fmodel, inputs, labels, epsilons=self.epsilon)
+            _, adv_batch, success = attack(fmodel, inputs, labels, epsilons=self.epsilon)
             robust_accuracy += batch_size - success.float().sum().item()
             with torch.no_grad():
                 model_output = model_rep(inputs.to(self.device))
@@ -238,15 +243,18 @@ class Cifar100TheoryAnalysis(Experiment):
                        })
         print(output)
 
-        with open(self.experiment_folder / f"theory_constants_on_val_with_thm4_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json", "w") as file:
+        with open(self.experiment_folder / f"theory_constants_{self.attack_type}_{self.epsilon[0]}_on_val_with_thm4_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
         """Load latest model and get epoch."""
-        ckpts = sorted(
-            list(self.experiment_folder.glob("*.pth")),
-            key=lambda x: int(x.stem.split("_")[-1]),
-        )
+        if self.num_categories > 0:
+            ckpts = sorted(
+                list(self.experiment_folder.glob("*.pth")),
+                key=lambda x: int(x.stem.split("_")[-1]),
+            )
+        else:
+            ckpts = None
         if ckpts:
             latest_epoch = int(ckpts[-1].stem.split("_")[-1])
             ckpt = f"{CKPT_NAME}_{latest_epoch}.pth"
@@ -287,7 +295,9 @@ def main():
     experiment = Cifar100TheoryAnalysis(
         experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp",
         num_categories=6,  # 0 means no change to pre-training, cifar10=10, fashion=10, intel_image=6
-        dataset_name="intel_image"
+        dataset_name="intel_image",
+        attack_type="l2_pgd",
+        epsilon=[0.1]
     )
     experiment.run(torch.device("cuda"))
 
