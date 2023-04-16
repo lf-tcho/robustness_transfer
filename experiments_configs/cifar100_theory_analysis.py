@@ -121,11 +121,11 @@ class Cifar100TheoryAnalysis(Experiment):
                 temp_list.append(temp)
                 if temp > max_dif:
                     max_dif = temp
-            print("diff from W_", i, ":", temp_list)
+            # print("diff from W_", i, ":", temp_list)
             wi_norm_list.append(torch.norm(w_matrix[i, :]).item())
             max_dif_list.append(max_dif)
             mean_max_dif += max_dif
-        print("norm of all  W_i:", wi_norm_list)
+        # print("norm of all  W_i:", wi_norm_list)
         mean_max_dif /= w_matrix.shape[0]
         spectral_norm = torch.linalg.matrix_norm(w_matrix, 2).item()
         frobenius_norm = torch.linalg.matrix_norm(w_matrix, 'fro').item()
@@ -162,9 +162,9 @@ class Cifar100TheoryAnalysis(Experiment):
         thm_41_contradiction = 0
         count = 0
         if self.attack_type == "linf_pgd":
-            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=0.07)
+            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=1)
         elif self.attack_type == "l2_pgd":
-            attack = fb.attacks.L2PGD(steps=20, rel_stepsize=0.07)
+            attack = fb.attacks.L2PGD(steps=20, rel_stepsize=1)
 
         for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -293,11 +293,10 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100TheoryAnalysis(
-        experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp",
+        experiment_name=".",
         num_categories=6,  # 0 means no change to pre-training, cifar10=10, fashion=10, intel_image=6
         dataset_name="intel_image",
-        attack_type="l2_pgd",
-        epsilon=[0.1]
+        attack_type="linf_pgd",
     )
     experiment.run(torch.device("cuda"))
 
