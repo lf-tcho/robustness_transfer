@@ -19,6 +19,25 @@ import json
 from pathlib import Path
 from robustbench.model_zoo.enums import BenchmarkDataset, ThreatModel
 import os
+from typing import Union, Any, Optional, Callable, Tuple
+
+from foolbox.models.base import Model
+import eagerpy as ep
+from foolbox.attacks import LinfProjectedGradientDescentAttack
+
+
+class NewLinfAttack(LinfProjectedGradientDescentAttack):
+
+    def get_loss_fn(
+            self, model: Model, labels: ep.Tensor
+    ) -> Callable[[ep.Tensor], ep.Tensor]:
+        # can be overridden by users
+        def loss_fn(inputs: ep.Tensor) -> ep.Tensor:
+            logits = model(inputs)
+            return ep.norms.l2(logits-labels).mean()
+
+        return loss_fn
+
 
 CKPT_NAME = "ckpt"
 
@@ -34,7 +53,7 @@ class Cifar100RepresentationAnalysis(Experiment):
         dataset_name: str = "cifar10",
         device: torch.device = torch.device("cuda"),
         epsilon=[8 / 255],
-        attack_type="l2_pgd"
+        attack_type="new_linf_pgd"
     ):
         """Initilize ImageNetExperiment.
 
@@ -125,6 +144,11 @@ class Cifar100RepresentationAnalysis(Experiment):
                 perturbed_inputs = self.fgsm_attack(model_rep, inputs, self.epsilon[0])
             elif self.attack_type == "linf_pgd":
                 perturbed_inputs = self.linf_pgd_attack(model_rep, inputs, self.epsilon[0], num_steps=10, step_size=0.01)
+            elif self.attack_type == "new_linf_pgd":
+                fmodel = fb.PyTorchModel(model_rep, bounds=(-1, 1))
+                attack = NewLinfAttack(steps=20, rel_stepsize=1)  # defaults steps=50, rel_stepsize=0.025
+                perturbed_inputs = attack.run(fmodel, inputs, clean_representation, epsilon=self.epsilon[0])
+
             elif self.attack_type == "l2_pgd":
                 perturbed_inputs = self.l2_pgd_attack(model_rep, inputs, self.epsilon[0], num_steps=10, step_size=0.01)
 
@@ -270,7 +294,8 @@ def main():
     experiment = Cifar100RepresentationAnalysis(
         experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp",
         num_categories=6,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="intel_image"
+        dataset_name="intel_image",
+        attack_type="new_linf_pgd"
     )
     experiment.run(torch.device("cuda"))
 

@@ -162,9 +162,9 @@ class Cifar100TheoryAnalysis(Experiment):
         thm_41_contradiction = 0
         count = 0
         if self.attack_type == "linf_pgd":
-            attack = fb.attacks.LinfPGD(steps=20)
+            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=0.07)
         elif self.attack_type == "l2_pgd":
-            attack = fb.attacks.L2PGD(steps=20)
+            attack = fb.attacks.L2PGD(steps=20, rel_stepsize=0.07)
 
         for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
