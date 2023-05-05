@@ -131,6 +131,7 @@ class Cifar100TheoryAnalysis(Experiment):
         frobenius_norm = torch.linalg.matrix_norm(w_matrix, 'fro').item()
         output = {"folder checkpoint": str(folder_ckpt), "spectral_norm": spectral_norm,
                   "frobenius_norm": frobenius_norm, "mean_L2_norm_Wi": sum(wi_norm_list)/len(wi_norm_list),
+                  "max_L2_norm_Wi": max(wi_norm_list),
                   "Mean_Max_dif": mean_max_dif,
                   "Max_Max_dif": max(max_dif_list),
                   "Min_Max_dif": min(max_dif_list)}
@@ -162,9 +163,9 @@ class Cifar100TheoryAnalysis(Experiment):
         thm_41_contradiction = 0
         count = 0
         if self.attack_type == "linf_pgd":
-            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=1)
+            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=0.7)
         elif self.attack_type == "l2_pgd":
-            attack = fb.attacks.L2PGD(steps=20, rel_stepsize=1)
+            attack = fb.attacks.L2PGD(steps=20, rel_stepsize=0.7)
 
         for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
@@ -243,7 +244,7 @@ class Cifar100TheoryAnalysis(Experiment):
                        })
         print(output)
 
-        with open(self.experiment_folder / f"theory_constants_{self.attack_type}_{self.epsilon[0]}_on_val_with_thm4_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json", "w") as file:
+        with open(self.experiment_folder / f"theory_constants_{self.attack_type}_{self.epsilon[0]}_on_v3_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json", "w") as file:
             json.dump(output, file)
 
     def load_model(self, model):
@@ -293,7 +294,7 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100TheoryAnalysis(
-        experiment_name=".",
+        experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp", # bs_128_ds_cifar10_eps_20_lr_0.01_lrs_cosine_tf_method_lp
         num_categories=6,  # 0 means no change to pre-training, cifar10=10, fashion=10, intel_image=6
         dataset_name="intel_image",
         attack_type="linf_pgd",

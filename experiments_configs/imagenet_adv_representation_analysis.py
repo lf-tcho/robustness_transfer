@@ -21,6 +21,28 @@ from pathlib import Path
 from robustbench.model_zoo.enums import BenchmarkDataset, ThreatModel
 import os
 
+from typing import Union, Any, Optional, Callable, Tuple
+from foolbox.models.base import Model
+import eagerpy as ep
+from foolbox.attacks import LinfProjectedGradientDescentAttack
+
+class NewLinfAttack(LinfProjectedGradientDescentAttack):
+
+    def get_loss_fn(
+            self, model: Model, labels: ep.Tensor
+    ) -> Callable[[ep.Tensor], ep.Tensor]:
+        # can be overridden by users
+        #def loss_fn(inputs: ep.Tensor) -> ep.Tensor:
+        #    logits = model(inputs)
+        #    return ep.norms.l2(logits-labels).mean()
+        def loss_fn(inputs: ep.Tensor) -> ep.Tensor:
+            logits = model(inputs)
+            if logits.shape[-1] == 1:
+                return ep.square((ep.reshape(logits, [-1]) - labels)).sum() / logits.shape[0]
+            else:
+                return (logits - labels).norms.l2(axis=-1, keepdims=True).sum() / logits.shape[0]
+        return loss_fn
+
 CKPT_NAME = "ckpt"
 
 
@@ -35,6 +57,7 @@ class ImageNetRepresentationAnalysis(Experiment):
         dataset_name: str = "cifar10",
         device: torch.device = torch.device("cuda"),
         epsilon=[8 / 255],
+        attack_type="linf_pgd"
     ):
         """Initilize ImageNetExperiment.
 
@@ -49,6 +72,7 @@ class ImageNetRepresentationAnalysis(Experiment):
         self.batch_size = batch_size
         self.device = device
         self.epsilon = epsilon
+        self.attack_type = attack_type
 
     def get_model(self):
         """Get model."""
@@ -123,48 +147,53 @@ class ImageNetRepresentationAnalysis(Experiment):
         model_rep, last_epoch, folder_ckpt = self.load_model(model_rep)
         model_rep.eval()
 
-        feature_difference_up = 0
-        feature_difference_down = 0
+        feature_difference = 0
         count = 0
 
         for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             # Set requires_grad attribute of tensor. Important for Attack
-            inputs.requires_grad = True
+
+            inputs, labels = inputs.to(self.device), labels.to(self.device)
+            # inputs.requires_grad = True
             model_output = model_rep(inputs.to(self.device))
             clean_representation = model_output.detach().clone()
             # Calculate the loss
-            loss = torch.mean(torch.norm(model_output - clean_representation ** 1.00001, dim=1))
-            # Zero all existing gradients
-            model_rep.zero_grad()
-            # Calculate gradients of model in backward pass
-            loss.backward(retain_graph=True)
-            # Collect datagrad
-            data_grad = inputs.grad.data
-            # Call FGSM Attack
-            perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
-            # Re-evaluate the perturbed image
-            adv_output = model_rep(perturbed_inputs.to(self.device))
-            feature_difference_up += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
+            # loss = torch.mean(torch.norm(model_output - clean_representation ** 1.00001, dim=1))
+            # # Zero all existing gradients
+            # model_rep.zero_grad()
+            # # Calculate gradients of model in backward pass
+            # loss.backward(retain_graph=True)
+            # # Collect datagrad
+            # data_grad = inputs.grad.data
+            # # Call FGSM Attack
+            # perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            # # Re-evaluate the perturbed image
+            # adv_output = model_rep(perturbed_inputs.to(self.device))
+            # feature_difference_up += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
+            #
+            # loss2 = torch.mean(torch.norm(model_output - clean_representation ** (1 - 0.00001), dim=1))
+            # # Zero all existing gradients
+            # model_rep.zero_grad()
+            # # Calculate gradients of model in backward pass
+            # loss2.backward()
+            # # Collect datagrad
+            # data_grad = inputs.grad.data
+            # # Call FGSM Attack
+            # perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
 
-            loss2 = torch.mean(torch.norm(model_output - clean_representation ** (1 - 0.00001), dim=1))
-            # Zero all existing gradients
-            model_rep.zero_grad()
-            # Calculate gradients of model in backward pass
-            loss2.backward()
-            # Collect datagrad
-            data_grad = inputs.grad.data
-            # Call FGSM Attack
-            perturbed_inputs = self.fgsm_attack(inputs, self.epsilon[0], data_grad)
+            if self.attack_type == "linf_pgd":
+                fmodel = fb.PyTorchModel(model_rep, bounds=(-1, 1))
+                attack = NewLinfAttack(steps=20, rel_stepsize=0.7)  # defaults steps=50, rel_stepsize=0.025
+                perturbed_inputs = attack.run(fmodel, inputs, clean_representation, epsilon=self.epsilon[0])
+
             # Re-evaluate the perturbed image
             adv_output = model_rep(perturbed_inputs.to(self.device))
-            feature_difference_down += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
+            feature_difference += torch.mean(torch.norm(adv_output - clean_representation, dim=1)).item()
             count += 1
 
-        feature_difference_up /= count
-        feature_difference_down /= count
-        output = {"folder checkpoint": str(folder_ckpt), "feature_difference_up": feature_difference_up,
-                  "feature_difference_down": feature_difference_down,
+        feature_difference /= count
+        output = {"folder checkpoint": str(folder_ckpt), "feature_difference": feature_difference,
                   "epsilon": self.epsilon[0]}
         print(output)
 
@@ -224,11 +253,11 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = ImageNetRepresentationAnalysis(
-        experiment_name=".",
-        num_categories=0,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="imagenet",
-        epsilon=[4 / 255],  # 1/255 instead of 8/255 for cifar10 and fashion, 4/255 for intel
-        batch_size=16
+        experiment_name="__imagenet_bs_32_ds_cifar10_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
+        num_categories=10,  # cifar10=10, fashion=10, intel_image=6
+        dataset_name="cifar10",
+        epsilon=[1 / 255],  # 1/255 instead of 8/255 for cifar10 and fashion, 4/255 for intel
+        batch_size=8
     )
     experiment.run(torch.device("cuda"))
 

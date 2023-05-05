@@ -32,10 +32,15 @@ class NewLinfAttack(LinfProjectedGradientDescentAttack):
             self, model: Model, labels: ep.Tensor
     ) -> Callable[[ep.Tensor], ep.Tensor]:
         # can be overridden by users
+        #def loss_fn(inputs: ep.Tensor) -> ep.Tensor:
+        #    logits = model(inputs)
+        #    return ep.norms.l2(logits-labels).mean()
         def loss_fn(inputs: ep.Tensor) -> ep.Tensor:
             logits = model(inputs)
-            return ep.norms.l2(logits-labels).mean()
-
+            if logits.shape[-1] == 1:
+                return ep.square((ep.reshape(logits, [-1]) - labels)).sum() / logits.shape[0]
+            else:
+                return (logits - labels).norms.l2(axis=-1, keepdims=True).sum() / logits.shape[0]
         return loss_fn
 
 
@@ -53,7 +58,7 @@ class Cifar100RepresentationAnalysis(Experiment):
         dataset_name: str = "cifar10",
         device: torch.device = torch.device("cuda"),
         epsilon=[8 / 255],
-        attack_type="new_linf_pgd"
+        attack_type="linf_pgd"
     ):
         """Initilize ImageNetExperiment.
 
@@ -138,19 +143,19 @@ class Cifar100RepresentationAnalysis(Experiment):
 
             model_output = model_rep(inputs.to(self.device))
             clean_representation = model_output.detach().clone()
-
-            # Call FGSM Attack
-            if self.attack_type == "fgsm":
-                perturbed_inputs = self.fgsm_attack(model_rep, inputs, self.epsilon[0])
-            elif self.attack_type == "linf_pgd":
-                perturbed_inputs = self.linf_pgd_attack(model_rep, inputs, self.epsilon[0], num_steps=10, step_size=0.01)
-            elif self.attack_type == "new_linf_pgd":
+            #
+            # # Call FGSM Attack
+            # if self.attack_type == "fgsm":
+            #     perturbed_inputs = self.fgsm_attack(model_rep, inputs, self.epsilon[0])
+            # elif self.attack_type == "linf_pgd":
+            #     perturbed_inputs = self.linf_pgd_attack(model_rep, inputs, self.epsilon[0], num_steps=10, step_size=0.01)
+            if self.attack_type == "linf_pgd":
                 fmodel = fb.PyTorchModel(model_rep, bounds=(-1, 1))
-                attack = NewLinfAttack(steps=20, rel_stepsize=1)  # defaults steps=50, rel_stepsize=0.025
+                attack = NewLinfAttack(steps=20, rel_stepsize=0.7)  # defaults steps=50, rel_stepsize=0.025
                 perturbed_inputs = attack.run(fmodel, inputs, clean_representation, epsilon=self.epsilon[0])
 
-            elif self.attack_type == "l2_pgd":
-                perturbed_inputs = self.l2_pgd_attack(model_rep, inputs, self.epsilon[0], num_steps=10, step_size=0.01)
+            # elif self.attack_type == "l2_pgd":
+            #     perturbed_inputs = self.l2_pgd_attack(model_rep, inputs, self.epsilon[0], num_steps=10, step_size=0.01)
 
             # Re-evaluate the perturbed image
             adv_output = model_rep(perturbed_inputs.to(self.device))
@@ -165,88 +170,88 @@ class Cifar100RepresentationAnalysis(Experiment):
         with open(self.experiment_folder / f"attack_{self.attack_type}_on_representation_on_val_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json", "w") as file:
             json.dump(output, file)
 
-    # FGSM attack code
-    def fgsm_attack(self, model_rep, image, epsilon):
-        # Set requires_grad attribute of tensor. Important for Attack
-        inputs.requires_grad = True
-        model_output = model_rep(inputs.to(self.device))
-        clean_representation = model_output.detach().clone()
-        # Calculate the loss
-        loss = torch.mean(torch.norm(model_output - clean_representation ** 1.00001, dim=1))
-        # Zero all existing gradients
-        model_rep.zero_grad()
-        # Calculate gradients of model in backward pass
-        loss.backward(retain_graph=True)
-        # Collect datagrad
-        data_grad = inputs.grad.data
-        # Collect the element-wise sign of the data gradient
-        sign_data_grad = data_grad.sign()
-        # Create the perturbed image by adjusting each pixel of the input image
-        perturbed_image = image + epsilon * sign_data_grad
-        # Adding clipping to maintain [-1,1] range
-        perturbed_image = torch.clamp(perturbed_image, -1, 1)
-        # Return the perturbed image
-        return perturbed_image
-
-    # LinfPGD Attack
-    def linf_pgd_attack(self, model, image, epsilon, num_steps=10, step_size=0.01):
-        original_output = model(image.to(self.device))
-        perturbed_image = image.detach().clone().to(self.device)
-        # l-inf specific random start
-        perturbed_image = perturbed_image + (-2*epsilon)*torch.rand(perturbed_image.shape).to(self.device) + epsilon
-        perturbed_image = torch.clamp(perturbed_image, -1, 1)
-        for i in range(num_steps):
-            perturbed_image.requires_grad = True 
-            model.zero_grad()
-            perturbed_output = model(perturbed_image.to(self.device))
-            loss = torch.mean(torch.norm(perturbed_output - original_output, dim=1))  # F.mse_loss(perturbed_output, original_output, reduction="sum")
-            loss.backward(retain_graph=True)
-            # l-inf specific update step
-            perturbed_image = perturbed_image + torch.clamp(step_size * perturbed_image.grad.data.sign(), -epsilon, epsilon)
-            # limit the perturbation
-            # perturbed_image = torch.max(torch.min(perturbed_image, image + epsilon), image - epsilon)
-            perturbed_image = perturbed_image.detach()
-            # Adding clipping to maintain [-1,1] range
-            perturbed_image = torch.clamp(perturbed_image, -1, 1)
-        return perturbed_image
-
-    # L2 PGD Attack
-    def l2_pgd_attack(self, model, image, epsilon, num_steps=10, step_size=0.01):
-        original_output = model(image.to(self.device))
-        perturbed_image = image.detach().clone().to(self.device)
-        # random start
-        batch_size, n = torch.flatten(perturbed_image, start_dim=1).shape
-        x = torch.normal(mean=torch.zeros(batch_size, n+1), std=1).to(self.device)
-        nr = torch.linalg.norm(x, dim=1, keepdims=True)
-        s = x/nr
-        r = s[:, :n].reshape(perturbed_image.shape)
-        perturbed_image = perturbed_image + epsilon * r
-        perturbed_image = torch.clamp(perturbed_image, -1, 1)
-        for i in range(num_steps):
-            perturbed_image.requires_grad = True
-            model.zero_grad()
-            perturbed_output = model(perturbed_image.to(self.device))
-            loss = torch.mean(torch.norm(perturbed_output - original_output,
-                                         dim=1))
-            loss.backward(retain_graph=True)
-            # update step, normalize gradient
-            norms = torch.linalg.norm(torch.flatten(perturbed_image.grad.data, start_dim=1), dim=1)
-            factor = 1 / torch.maximum(norms, torch.tensor((1e-12)))
-            factor_reshape = factor.shape + (1,) * (perturbed_image.grad.data.ndim - factor.ndim)
-            factor = factor.reshape(factor_reshape)
-            normalized_gradient = perturbed_image.grad.data * factor
-            projected_update = step_size * normalized_gradient
-            # limit the perturbation, project
-            norms2 = torch.linalg.norm(torch.flatten(projected_update, start_dim=1), dim=1)
-            norms2 = torch.maximum(norms2, torch.tensor((1e-12)))
-            factor = torch.minimum( torch.tensor((1)), epsilon/norms2)
-            factor_reshape = factor.shape + (1,) * (projected_update.ndim - factor.ndim)
-            factor = factor.reshape(factor_reshape)
-            perturbed_image = perturbed_image + projected_update * factor
-            perturbed_image = perturbed_image.detach()
-            # Adding clipping to maintain [-1,1] range
-            perturbed_image = torch.clamp(perturbed_image, -1, 1)
-        return perturbed_image
+    # # FGSM attack code
+    # def fgsm_attack(self, model_rep, image, epsilon):
+    #     # Set requires_grad attribute of tensor. Important for Attack
+    #     inputs.requires_grad = True
+    #     model_output = model_rep(inputs.to(self.device))
+    #     clean_representation = model_output.detach().clone()
+    #     # Calculate the loss
+    #     loss = torch.mean(torch.norm(model_output - clean_representation ** 1.00001, dim=1))
+    #     # Zero all existing gradients
+    #     model_rep.zero_grad()
+    #     # Calculate gradients of model in backward pass
+    #     loss.backward(retain_graph=True)
+    #     # Collect datagrad
+    #     data_grad = inputs.grad.data
+    #     # Collect the element-wise sign of the data gradient
+    #     sign_data_grad = data_grad.sign()
+    #     # Create the perturbed image by adjusting each pixel of the input image
+    #     perturbed_image = image + epsilon * sign_data_grad
+    #     # Adding clipping to maintain [-1,1] range
+    #     perturbed_image = torch.clamp(perturbed_image, -1, 1)
+    #     # Return the perturbed image
+    #     return perturbed_image
+    #
+    # # LinfPGD Attack
+    # def linf_pgd_attack(self, model, image, epsilon, num_steps=10, step_size=0.01):
+    #     original_output = model(image.to(self.device))
+    #     perturbed_image = image.detach().clone().to(self.device)
+    #     # l-inf specific random start
+    #     perturbed_image = perturbed_image + (-2*epsilon)*torch.rand(perturbed_image.shape).to(self.device) + epsilon
+    #     perturbed_image = torch.clamp(perturbed_image, -1, 1)
+    #     for i in range(num_steps):
+    #         perturbed_image.requires_grad = True
+    #         model.zero_grad()
+    #         perturbed_output = model(perturbed_image.to(self.device))
+    #         loss = torch.mean(torch.norm(perturbed_output - original_output, dim=1))  # F.mse_loss(perturbed_output, original_output, reduction="sum")
+    #         loss.backward(retain_graph=True)
+    #         # l-inf specific update step
+    #         perturbed_image = perturbed_image + torch.clamp(step_size * perturbed_image.grad.data.sign(), -epsilon, epsilon)
+    #         # limit the perturbation
+    #         # perturbed_image = torch.max(torch.min(perturbed_image, image + epsilon), image - epsilon)
+    #         perturbed_image = perturbed_image.detach()
+    #         # Adding clipping to maintain [-1,1] range
+    #         perturbed_image = torch.clamp(perturbed_image, -1, 1)
+    #     return perturbed_image
+    #
+    # # L2 PGD Attack
+    # def l2_pgd_attack(self, model, image, epsilon, num_steps=10, step_size=0.01):
+    #     original_output = model(image.to(self.device))
+    #     perturbed_image = image.detach().clone().to(self.device)
+    #     # random start
+    #     batch_size, n = torch.flatten(perturbed_image, start_dim=1).shape
+    #     x = torch.normal(mean=torch.zeros(batch_size, n+1), std=1).to(self.device)
+    #     nr = torch.linalg.norm(x, dim=1, keepdims=True)
+    #     s = x/nr
+    #     r = s[:, :n].reshape(perturbed_image.shape)
+    #     perturbed_image = perturbed_image + epsilon * r
+    #     perturbed_image = torch.clamp(perturbed_image, -1, 1)
+    #     for i in range(num_steps):
+    #         perturbed_image.requires_grad = True
+    #         model.zero_grad()
+    #         perturbed_output = model(perturbed_image.to(self.device))
+    #         loss = torch.mean(torch.norm(perturbed_output - original_output,
+    #                                      dim=1))
+    #         loss.backward(retain_graph=True)
+    #         # update step, normalize gradient
+    #         norms = torch.linalg.norm(torch.flatten(perturbed_image.grad.data, start_dim=1), dim=1)
+    #         factor = 1 / torch.maximum(norms, torch.tensor((1e-12)))
+    #         factor_reshape = factor.shape + (1,) * (perturbed_image.grad.data.ndim - factor.ndim)
+    #         factor = factor.reshape(factor_reshape)
+    #         normalized_gradient = perturbed_image.grad.data * factor
+    #         projected_update = step_size * normalized_gradient
+    #         # limit the perturbation, project
+    #         norms2 = torch.linalg.norm(torch.flatten(projected_update, start_dim=1), dim=1)
+    #         norms2 = torch.maximum(norms2, torch.tensor((1e-12)))
+    #         factor = torch.minimum( torch.tensor((1)), epsilon/norms2)
+    #         factor_reshape = factor.shape + (1,) * (projected_update.ndim - factor.ndim)
+    #         factor = factor.reshape(factor_reshape)
+    #         perturbed_image = perturbed_image + projected_update * factor
+    #         perturbed_image = perturbed_image.detach()
+    #         # Adding clipping to maintain [-1,1] range
+    #         perturbed_image = torch.clamp(perturbed_image, -1, 1)
+    #     return perturbed_image
     
     def load_model(self, model):
         """Load latest model and get epoch."""
@@ -292,10 +297,10 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = Cifar100RepresentationAnalysis(
-        experiment_name="bs_128_ds_intel_image_eps_20_lr_0.01_lrs_cosine_tf_method_lp",
-        num_categories=6,  # cifar10=10, fashion=10, intel_image=6
-        dataset_name="intel_image",
-        attack_type="new_linf_pgd"
+        experiment_name=".",
+        num_categories=0,  # cifar10=10, fashion=10, intel_image=6
+        dataset_name="cifar100",
+        attack_type="linf_pgd"
     )
     experiment.run(torch.device("cuda"))
 

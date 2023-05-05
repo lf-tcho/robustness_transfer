@@ -36,6 +36,7 @@ class ImageNetTheoryAnalysis(Experiment):
         dataset_name: str = "cifar10",
         device: torch.device = torch.device("cuda"),
         epsilon=[8 / 255],
+        attack_type="linf_pgd",
     ):
         """Initilize ImageNetExperiment.
 
@@ -50,6 +51,7 @@ class ImageNetTheoryAnalysis(Experiment):
         self.batch_size = batch_size
         self.device = device
         self.epsilon = epsilon
+        self.attack_type = attack_type
 
     def get_model(self):
         """Get model."""
@@ -142,6 +144,7 @@ class ImageNetTheoryAnalysis(Experiment):
         frobenius_norm = torch.linalg.matrix_norm(w_matrix, 'fro').item()
         output = {"folder checkpoint": str(folder_ckpt), "spectral_norm": spectral_norm,
                   "frobenius_norm": frobenius_norm, "mean_L2_norm_Wi": sum(wi_norm_list)/len(wi_norm_list),
+                  "max_L2_norm_Wi": max(wi_norm_list),
                   "Mean_Max_dif": mean_max_dif,
                   "Max_Max_dif": max(max_dif_list),
                   "Min_Max_dif": min(max_dif_list)}
@@ -172,13 +175,17 @@ class ImageNetTheoryAnalysis(Experiment):
         thm_41_acc = 0
         thm_41_contradiction = 0
         count = 0
-        l_inf_pgd = fb.attacks.LinfPGD(steps=20)
+        # l_inf_pgd = fb.attacks.LinfPGD(steps=20)
+        if self.attack_type == "linf_pgd":
+            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=0.7)
+        elif self.attack_type == "l2_pgd":
+            attack = fb.attacks.L2PGD(steps=20, rel_stepsize=0.7)
 
         for inputs, labels in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             batch_size = inputs.shape[0]
             accuracy += fb.utils.accuracy(fmodel, inputs, labels) * batch_size
-            _, adv_batch, success = l_inf_pgd(fmodel, inputs, labels, epsilons=self.epsilon)
+            _, adv_batch, success = attack(fmodel, inputs, labels, epsilons=self.epsilon)
             robust_accuracy += batch_size - success.float().sum().item()
             with torch.no_grad():
                 model_output = model_rep(inputs.to(self.device))
@@ -254,7 +261,7 @@ class ImageNetTheoryAnalysis(Experiment):
         print(output)
 
         with open(
-                self.experiment_folder / f"theory_constants_on_val_with_thm4_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json",
+                self.experiment_folder / f"theory_constants_on_v3_{CKPT_NAME}{last_epoch}_{self.dataset_name}.json",
                 "w") as file:
             json.dump(output, file)
 
@@ -305,10 +312,10 @@ def main():
     """Command line tool to run experiment and evaluation."""
 
     experiment = ImageNetTheoryAnalysis(
-        experiment_name=".",
-        num_categories=0,  # cifar10=10; 1/255, fashion=10; 1/255, intel_image=6; 4/255 also image_net
-        dataset_name="imagenet",
-        epsilon=[4/255],  # instead of 8/255
+        experiment_name="__imagenet_bs_32_ds_intel_image_eps_10_lr_0.001_lrs_cosine_tf_method_lp",
+        num_categories=6,  # cifar10=10; 1/255, fashion=10; 1/255, intel_image=6; 4/255 also image_net
+        dataset_name="intel_image",
+        epsilon=[1/255],  # instead of 8/255
         batch_size=32
     )
     experiment.run(torch.device("cuda"))
