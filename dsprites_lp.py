@@ -114,7 +114,7 @@ def main(args):
     # Initialize a torch dataset, specifying the target latent dimension for
     # the classifier
     dSprites_torchdataset = DSprites(
-      factors_to_use=args.target_latent
+      factors_to_use=args.finetune_target_latent
       )
 
     # Initialize a train_sampler and a test_sampler to keep the two sets
@@ -129,7 +129,9 @@ def main(args):
 
     # Initialize a core encoder network on which the classifier will be added
     supervised_model = Model_dsprites()
-    supervised_model = load_model(f"{args.ckpt_dir}/{args.target_latent}", supervised_model)
+    print("pretrain model type = ", args.pretrain_model_type)
+    if args.pretrain_model_type!="random":
+        supervised_model = load_model(f"{args.ckpt_dir}/{args.pretrain_target_latent}-{args.pretrain_model_type}", supervised_model)
     
     if args.train_only_fclayer:
         for p in supervised_model.parameters(): p.requires_grad = False
@@ -147,20 +149,22 @@ def main(args):
         num_epochs=args.num_epochs,
         )
     if args.train_only_fclayer:
-        torch.save(model.state_dict(), f"{args.experiment_folder}/models/{args.target_latent}_lp.pth")
+        torch.save(model.state_dict(), f"{args.experiment_folder}/models/{args.pretrain_target_latent}-{args.finetune_target_latent}_{args.pretrain_model_type}_lp.pth")
     else:
-        torch.save(model.state_dict(), f"{args.experiment_folder}/models/{args.target_latent}_ft.pth")
+        torch.save(model.state_dict(), f"{args.experiment_folder}/models/{args.pretrain_target_latent}-{args.finetune_target_latent}_{args.pretrain_model_type}_ft.pth")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--exp_name', type=str, default="bs_128_ds_dsprites_eps_10_lr_0.001_lrs_cosine_tf_method_lp")
     parser.add_argument('--ckpt_dir', type=str, default="models/dsprites/Linf")
     parser.add_argument('--train_only_fclayer', type=eval, default=True)
-    parser.add_argument('--target_latent', type=str, default="orientation")
-    parser.add_argument('--num_epochs', type=int, default=10,
-            help="# of epochs")
+    parser.add_argument('--pretrain_model_type', type=str, default="robust", choices=["random", "clean", "robust"])
+    parser.add_argument('--pretrain_target_latent', type=str, default="orientation")
+    parser.add_argument('--finetune_target_latent', type=str, default="scale")
+    parser.add_argument('--num_epochs', type=int, default=10, help="# of epochs")
     args = parser.parse_args()
-    args.target_latent = args.target_latent.split(', ')
+    args.pretrain_target_latent = args.pretrain_target_latent.split(', ')
+    args.finetune_target_latent = args.finetune_target_latent.split(', ')
     args.experiment_folder = Path("./experiments") / args.exp_name
     
     main(args)

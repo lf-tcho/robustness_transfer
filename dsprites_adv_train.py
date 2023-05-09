@@ -36,7 +36,7 @@ def train_test_split_idx(dataset, fraction_train=0.8, randst=None,):
 
     return train_sampler, test_sampler
 
-def train_classifier(model, dataset, train_sampler, test_sampler, 
+def train_classifier(model, dataset, train_sampler, test_sampler, adv_train,
                      num_epochs=10, fraction_of_labels=1.0, batch_size=1024, 
                      freeze_features=True, subset_seed=None, use_cuda=True, 
                      progress_bar=True, verbose=False, epsilon=[8 / 255],):
@@ -62,34 +62,41 @@ def train_classifier(model, dataset, train_sampler, test_sampler,
     loss_fn = nn.MSELoss(reduction='mean')
     l_inf_pgd = fb.attacks.LinfPGD(steps=20)
     
+    if adv_train:
+        print("-------Training a Robust Model-------")
+    else:
+        print("-------Training a Clean Model-------")
+    
     # Train classifier on training set
     model.train()
     fmodel = fb.PyTorchModel(model, bounds=(-1, 1))
     
-    loss_pert_train = []
+    loss_train = []
     for _ in tqdm(range(num_epochs), disable=not(progress_bar)):
-        total_pert_loss = 0
+        total_loss = 0
         num_total = 0
         for iter_data in train_dataloader:
             X, y, _ = iter_data # ignore indices
             X, y = X.to(args.device), y.to(args.device)
             X = X.resize(X.size(0), 1, 64, 64)
-            criterion = fb.criteria.Regression(y)
-            _, X_pert, success = l_inf_pgd(fmodel, X, criterion=criterion, epsilons=epsilon)
-            X_pert[0] = X_pert[0].resize(X.size(0), 1, 64, 64)
-            
+            if adv_train:
+                criterion = fb.criteria.Regression(y)
+                _, X_pert, success = l_inf_pgd(fmodel, X, criterion=criterion, epsilons=epsilon)
+                X_pert[0] = X_pert[0].resize(X.size(0), 1, 64, 64)
+                X = X_pert[0]
+                
             optimizer.zero_grad()
 
-            predicted_y_pert_logits = model(X_pert[0])
-            loss_pert = loss_fn(predicted_y_pert_logits.squeeze(), y.to(torch.float))
-            loss_pert.backward()
+            predicted_y_logits = model(X)
+            loss = loss_fn(predicted_y_logits.squeeze(), y.to(torch.float))
+            loss.backward()
             optimizer.step()
 
-            total_pert_loss += loss_pert.item()
+            total_loss += loss.item()
             num_total += 1
-        print(total_pert_loss / num_total)
+        print(total_loss / num_total)
         print()
-        loss_pert_train.append(total_pert_loss / num_total)
+        loss_train.append(total_loss / num_total)
         scheduler.step()
     # Calculate prediction accuracy on training and test sets
     model.eval()
@@ -120,7 +127,7 @@ def train_classifier(model, dataset, train_sampler, test_sampler,
             num_total += 1
     print('perturbed val_loss= ', loss_pert_total/num_total)
     print('benign val_loss= ', loss_total/num_total)
-    return model, loss_pert_train
+    return model, loss_train
 
 def main(args):
     """Command line tool to run experiment and evaluation."""
@@ -148,17 +155,21 @@ def main(args):
         dataset=dSprites_torchdataset,
         train_sampler=train_sampler,
         test_sampler=test_sampler,
+        adv_train=args.adv_train,
         freeze_features=False,
         num_epochs=args.num_epochs,
         )
-
-    torch.save(model.state_dict(), args.save_dir + f'/{args.target_latent}.pth')
+    if args.adv_train:
+        torch.save(model.state_dict(), args.save_dir + f'/{args.target_latent}-robust.pth')
+    else:
+        torch.save(model.state_dict(), args.save_dir + f'/{args.target_latent}-clean.pth')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--save_dir', type=str, default="models/dsprites/Linf")
     parser.add_argument('--target_latent', type=str, default="orientation")
     parser.add_argument('--num_epochs', type=int, default=10, help="# of epochs")
+    parser.add_argument('--adv_train', type=eval, default=True, help="to train a robust model or not")
     args = parser.parse_args()
     
     os.makedirs(args.save_dir, exist_ok=True)

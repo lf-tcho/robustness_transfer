@@ -32,7 +32,7 @@ class DSpritesTheoryAnalysis(Experiment):
         dataset_name: str = "dsprites",
         target_latent="orientation",
         device: torch.device = torch.device("cuda"),
-        epsilon=[8 / 255],
+        epsilon=[16 / 255], #[8 / 255]
     ):
         """Initilize ImageNetExperiment.
 
@@ -73,6 +73,7 @@ class DSpritesTheoryAnalysis(Experiment):
 
         loss = 0
         loss_adv = 0
+        loss_diff = 0
         feature_difference = 0
         c2 = float("-inf")
         count = 0
@@ -94,14 +95,19 @@ class DSpritesTheoryAnalysis(Experiment):
 
                 loss += nn.functional.mse_loss(fx, labels.to(self.device).to(torch.float)).item()
                 loss_adv += nn.functional.mse_loss(fx_adv, labels.to(self.device).to(torch.float)).item()
+                loss_diff += (nn.functional.mse_loss(fx_adv, labels.to(self.device).to(torch.float)).item() - nn.functional.mse_loss(fx, labels.to(self.device).to(torch.float)).item())
                 feature_difference += torch.mean(torch.linalg.norm((frep_adv - frep), dim=1)).item()
                 c2 = max(c2, nn.functional.mse_loss(fx, labels.to(self.device).to(torch.float)).item())
             count += 1
         loss /= count
         loss_adv /= count
+        loss_diff /= count
         avg_feature_difference = feature_difference/count
+        
+        lhs = loss_diff/spectral_norm
+        rhs = avg_feature_difference
         output.update({"loss": loss, "loss_adv": loss_adv, "avg_feature_difference": avg_feature_difference,
-                       "C2": c2})
+                       "C2": c2, "loss_diff": loss_diff, "LHS": lhs, "RHS": rhs})
         print(output)
         
         with open(self.experiment_folder / f"result_th3_2_{self.target_latent}_{args.model_type}_reg_on_val.json", "w") as file:
@@ -118,14 +124,14 @@ class DSpritesTheoryAnalysis(Experiment):
             self.target_latent,
             self.dataset_name,
             True,
-            batch_size=4096,
+            batch_size=8,
             shuffle=True,
         )
         eval_dataloader = get_dataloader(
             self.target_latent,
             self.dataset_name,
             False,
-            batch_size=4096,
+            batch_size=8,
         )
         return train_dataloader, eval_dataloader
 
