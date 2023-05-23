@@ -69,7 +69,7 @@ def train_classifier(model, dataset, train_sampler, test_sampler, adv_train,
     
     # Train classifier on training set
     model.train()
-    fmodel = fb.PyTorchModel(model, bounds=(-1, 1))
+    fmodel = fb.PyTorchModel(model, bounds=(0, 1))
     
     loss_train = []
     for _ in tqdm(range(num_epochs), disable=not(progress_bar)):
