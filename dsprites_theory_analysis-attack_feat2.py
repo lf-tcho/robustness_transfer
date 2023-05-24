@@ -34,7 +34,7 @@ class DSpritesTheoryAnalysis(Experiment):
         finetune_target_latent="scale",
         device: torch.device = torch.device("cuda"),
         attack_type="linf_pgd", 
-        epsilon=[16 / 255], #[8 / 255]
+        epsilon=[16 / 255], 
     ):
         """Initilize ImageNetExperiment.
 
@@ -61,6 +61,7 @@ class DSpritesTheoryAnalysis(Experiment):
         """Run experiment."""
         model = self.get_model().to(device)
         model = self.load_model(model)
+        model.eval()
         # look at the weight matrix of last linear layer
         w_matrix = model.fc.weight
         spectral_norm = torch.linalg.matrix_norm(w_matrix, 2).item()
@@ -69,9 +70,10 @@ class DSpritesTheoryAnalysis(Experiment):
 
         train_dataloader, eval_dataloader = self.get_dataloaders()
         # choose training or validation dataset
-        data_loader = eval_dataloader
+        data_loader = train_dataloader
         model.eval()
-        fmodel_feat = fb.PyTorchModel(model.feats, bounds=(-1.0, 1.0))
+        fmodel = fb.PyTorchModel(model, bounds=(0.0, 1.0))
+        fmodel_feat = fb.PyTorchModel(model.feats, bounds=(0.0, 1.0))
 
         loss = 0
         loss_adv = 0
@@ -81,20 +83,26 @@ class DSpritesTheoryAnalysis(Experiment):
         count = 0
         # l_inf_pgd = fb.attacks.LinfPGD(steps=20) 
         if self.attack_type == "linf_pgd":
-            attack = fb.attacks.LinfPGD(steps=20, rel_stepsize=1)
+            attack = fb.attacks.LinfPGD(steps=50, rel_stepsize=1)
         elif self.attack_type == "l2_pgd":
-            attack = fb.attacks.L2PGD(steps=50, rel_stepsize=10)
+            attack = fb.attacks.L2PGD(steps=50, rel_stepsize=1)
         for inputs, labels, idx in tqdm(data_loader):
             inputs, labels = inputs.to(self.device), labels.to(self.device)
             inputs = inputs.resize(inputs.size(0), 1, 64, 64)
             with torch.no_grad(): frep = model.get_features(inputs.to(self.device))
             batch_size = inputs.shape[0]
-
-            criterion = fb.criteria.NormDiff(frep)
-            _, adv_batch, success = attack(fmodel_feat, inputs, criterion=criterion, epsilons=self.epsilon)
+            
+            # attacking the output (last layer output)
+            criterion = fb.criteria.Regression(labels)
+            _, adv_batch, success = attack(fmodel, inputs, criterion=criterion, epsilons=self.epsilon)
             adv_batch[0] = adv_batch[0].resize(inputs.size(0), 1, 64, 64)
+            
+            # attacking the rep function
+            criterion = fb.criteria.NormDiff(frep)
+            _, adv_batch_repattacked, success = attack(fmodel_feat, inputs, criterion=criterion, epsilons=self.epsilon)
+            adv_batch_repattacked[0] = adv_batch_repattacked[0].resize(inputs.size(0), 1, 64, 64)
             with torch.no_grad():
-                frep_adv = model.get_features(adv_batch[0].to(self.device))
+                frep_adv = model.get_features(adv_batch_repattacked[0].to(self.device))
                 fx = model(inputs.to(self.device))
                 fx_adv = model(adv_batch[0].to(self.device))
                 loss += nn.functional.mse_loss(fx, labels.to(self.device).to(torch.float)).item()
@@ -128,14 +136,14 @@ class DSpritesTheoryAnalysis(Experiment):
             self.finetune_target_latent,
             self.dataset_name,
             True,
-            batch_size=4096,
+            batch_size=32,
             shuffle=True,
         )
         eval_dataloader = get_dataloader(
             self.finetune_target_latent,
             self.dataset_name,
             False,
-            batch_size=4096,
+            batch_size=32,
         )
         return train_dataloader, eval_dataloader
 
