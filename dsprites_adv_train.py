@@ -37,7 +37,7 @@ def train_test_split_idx(dataset, fraction_train=0.8, randst=None,):
     return train_sampler, test_sampler
 
 def train_classifier(model, dataset, train_sampler, test_sampler, adv_train,
-                     num_epochs=10, fraction_of_labels=1.0, batch_size=1024, 
+                     num_epochs=10, fraction_of_labels=1.0, batch_size=512, 
                      freeze_features=True, subset_seed=None, use_cuda=True, 
                      progress_bar=True, verbose=False, epsilon=[8 / 255],):
    
