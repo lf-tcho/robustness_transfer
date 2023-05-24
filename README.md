@@ -29,32 +29,32 @@ python dsprites_lp.py --target_latent orientation --train_only_fclayer False
 
 Below are few variations which we tried to reporduce Table 4.
 
-**Adversarial - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+- **Adversarial - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
 python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type robust --pretrain_target_latent orientation --finetune_target_latent scale --attack_type linf_pgd --model_type lp 
 ```
 
-**Standard - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+- **Standard - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
 python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type clean --pretrain_target_latent orientation --finetune_target_latent scale --attack_type linf_pgd --model_type lp 
 ```
 
-**Random - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+- **Random - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
 python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type random --pretrain_target_latent orientation --finetune_target_latent scale --attack_type linf_pgd --model_type lp 
 ```
 
-**Adversarial - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+- **Adversarial - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
 python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type robust --pretrain_target_latent orientation --finetune_target_latent scale --attack_type l2_pgd --model_type lp 
 ```
 
-**Standard - L2 PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+- **Standard - L2 PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
 python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type clean --pretrain_target_latent orientation --finetune_target_latent scale --attack_type l2_pgd --model_type lp 
 ```
 
-**Random - L2 PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+- **Random - L2 PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
 python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type random --pretrain_target_latent orientation --finetune_target_latent scale --attack_type l2_pgd --model_type lp 
 ```
