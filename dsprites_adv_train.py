@@ -53,7 +53,10 @@ def train_classifier(model, dataset, train_sampler, test_sampler, adv_train,
 
     # Define loss and optimizers
     train_parameters = model.parameters()
-
+    
+    model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    params = sum([np.prod(p.size()) for p in model_parameters])
+    print('params = ', params)
     optimizer = torch.optim.Adam(train_parameters, lr=1e-3)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
         optimizer, T_max=100
@@ -69,7 +72,7 @@ def train_classifier(model, dataset, train_sampler, test_sampler, adv_train,
     
     # Train classifier on training set
     model.train()
-    fmodel = fb.PyTorchModel(model, bounds=(0, 1))
+    fmodel = fb.PyTorchModel(model, bounds=(0, 1.0))
     
     loss_train = []
     for _ in tqdm(range(num_epochs), disable=not(progress_bar)):
