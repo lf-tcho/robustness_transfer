@@ -1,3 +1,10 @@
+***
+
+## Files
+- `dsprites_adv_train.py` pre-trains a model from scratch on dSprites Dataset.
+- `dsprites_lp.py` linear probes/ finetunes the pre-trained model (saved after running the above script) on a specific target latent factor (scale, orientation, posX, posY).
+- `dsprites_theory_analysis-attack_feat2.py` calculates the LHS and RHS of the Lemma 1 (see paper) using the linear probed model (saved after running the above script).
+
 # Setup
 ### Install dependencies
 
@@ -5,7 +12,7 @@
 pip install -r requirements.txt
 ```
 
-## DSprites Dataset
+## Experiments - dSprites Dataset - Table 4 (see paper)
 ### Training (from scratch) on dsprites
 
 ```bash
@@ -13,39 +20,41 @@ python dsprites_adv_train.py --target_latent orientation
 ```
 
 ### Linear Probing / Finetuning on dsprites
-
+Run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--target_latent` argument.
 ```bash
 python dsprites_lp.py --target_latent orientation --train_only_fclayer False
 ```
 
-### Evaluating on dsprites
+### Calculate LHS and RHS for Lemma 1 (see paper).
 
-Attack on the logits (output from last layer)
+Below are few variations which we tried to reporduce Table 4.
+
+**Adversarial - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
-python dsprites_theory_analysis.py --target_latent orientation
+python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type robust --pretrain_target_latent orientation --finetune_target_latent scale --attack_type linf_pgd --model_type lp 
 ```
 
-Attack on the representation function.
+**Standard - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
-python dsprites_theory_analysis-attack_feat2.py --target_latent orientation
+python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type clean --pretrain_target_latent orientation --finetune_target_latent scale --attack_type linf_pgd --model_type lp 
 ```
 
-## CIFAR Dataset
-### Linear Probing / Finetuning on CIFAR10
-
-Take a robustly pretrained CIFAR100 model and linear probe/finetune on CIFAR10 dataset.
+**Random - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
-python cifar_lp.py --train_only_fclayer False
+python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type random --pretrain_target_latent orientation --finetune_target_latent scale --attack_type linf_pgd --model_type lp 
 ```
 
-### Evaluating on CIFAR10
-
-Attack on the logits (output from last layer).
+**Adversarial - Linf PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
-python cifar_theory_analysis.py 
+python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type robust --pretrain_target_latent orientation --finetune_target_latent scale --attack_type l2_pgd --model_type lp 
 ```
 
-Attack on the representation function.
+**Standard - L2 PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
 ```bash
-python cifar_theory_analysis-attack_feat2.py
+python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type clean --pretrain_target_latent orientation --finetune_target_latent scale --attack_type l2_pgd --model_type lp 
+```
+
+**Random - L2 PGD**: run the below command separately for all the target latents - scale, orientation, posX, posY specifying it in the `--finetune_target_latent` argument.
+```bash
+python dsprites_theory_analysis-attack_feat2.py --pretrain_model_type random --pretrain_target_latent orientation --finetune_target_latent scale --attack_type l2_pgd --model_type lp 
 ```
