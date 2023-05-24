@@ -136,14 +136,14 @@ class DSpritesTheoryAnalysis(Experiment):
             self.finetune_target_latent,
             self.dataset_name,
             True,
-            batch_size=32,
+            batch_size=1,
             shuffle=True,
         )
         eval_dataloader = get_dataloader(
             self.finetune_target_latent,
             self.dataset_name,
             False,
-            batch_size=32,
+            batch_size=1,
         )
         return train_dataloader, eval_dataloader
 
