@@ -6,7 +6,7 @@ from torch.utils.data import DataLoader, Subset
 from torchvision.transforms import Compose, ToTensor
 import torch
 from typing import List
-from ..src.utils import download_url, unzip, copy_all_files
+from src.utils import download_url, unzip, copy_all_files
 import glob
 from torchvision.io import read_image, ImageReadMode
 from torch.utils.data import Dataset
