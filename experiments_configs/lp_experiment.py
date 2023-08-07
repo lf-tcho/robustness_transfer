@@ -1,19 +1,19 @@
 import argparse
-from ..src.dataloader import get_dataloader
+from src.dataloader import get_dataloader
 from math import ceil
-from ..src.dataloader import get_dataloader
+from src.dataloader import get_dataloader
 from robustbench.utils import load_model
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import torch.nn as nn
-from ..src.trainer import Trainer
-from ..src.experiment import Experiment
+from src.trainer import Trainer
+from src.experiment import Experiment
 import torch
 import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 from torchvision.transforms import Normalize, Resize
-from ..src.utils import get_experiment_name
-from ..src.evaluator import Evaluator
+from src.utils import get_experiment_name
+from src.evaluator import Evaluator
 
 class LpExperiment(Experiment):
     """Experiment for linear probing."""
@@ -56,7 +56,7 @@ class LpExperiment(Experiment):
         """Get model."""
         model = load_model(
             model_name="Addepalli2022Efficient_WRN_34_10",
-            dataset="cifar100",
+            dataset="cifar10",
             threat_model="Linf",
         )
         # Change output size of model to 10 classes
@@ -217,7 +217,7 @@ def main():
     parser.add_argument("-eps", "--epochs", default=20, type=int)
     parser.add_argument("-lr", "--learning_rate", default=0.01, type=float)
     parser.add_argument("-device", "--device", default="cuda")
-    parser.add_argument("-method", "--tf_method", default="ft", type=str)
+    parser.add_argument("-method", "--tf_method", default="lp", type=str)
     parser.add_argument("-eval", "--eval", default=1, type=int)
     parser.add_argument("-train", "--train", default=1, type=int)
     parser.add_argument("-evaleps", "--evaleps", default=19, type=int)
@@ -225,8 +225,8 @@ def main():
     parser.add_argument("-evaldssize", "--evaldssize", default=None, type=int)
     parser.add_argument("-lp_epochs", "--lp_epochs", default=0, type=int)
     parser.add_argument("-lr_scheduler", "--lr_scheduler", default="cosine", type=str)
-    parser.add_argument("-ds", "--dataset_name", default="cifar10", type=str) # cifar10=10, fashion=10, intel_image=6
-    parser.add_argument("-num_cat", "--num_categories", default=10, type=int)
+    parser.add_argument("-ds", "--dataset_name", default="cifar100", type=str) # cifar10=10, fashion=10, intel_image=6
+    parser.add_argument("-num_cat", "--num_categories", default=100, type=int)
     parser.add_argument("-eval_all", "--eval_all", default=0, type=int)
     args = parser.parse_args()
     experiment_args = {"bs": args.batch_size,
