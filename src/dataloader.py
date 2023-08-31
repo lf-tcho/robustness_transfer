@@ -3,7 +3,7 @@ from math import ceil
 from pathlib import Path
 import torchvision.datasets as datasets
 from torch.utils.data import DataLoader, Subset
-from torchvision.transforms import Compose, ToTensor
+from torchvision.transforms import Compose, ToTensor, ToPILImage
 import torch
 from typing import List
 from ..src.utils import download_url, unzip, copy_all_files
@@ -1177,6 +1177,36 @@ class ImageNetDataset(Dataset):
             print("No dataset downloaded")
             return
 
+#import tensorflow_datasets as tfds
+#
+# class ImageNetDatasetC(Dataset):
+#     """Intel image dataset."""
+#     """Mapping from category name to label id."""
+#     category2id = {IMAGENET2012_CLASSES_list[i]: i for i in range(len(IMAGENET2012_CLASSES_list))}
+#
+#     dataset_folder = Path(DATA_DIR) / "imagenet-C"
+#     """Folder to store images in."""
+#
+#     def __init__(self, train: bool = False, transform: List = None, corruption_level=1):
+#         """Initilize dataset.
+#
+#         :param train: If True train set is return, else test set
+#         :param transform: Transfroms to apply to images
+#         """
+#         ds_dict = tfds.data_source('fashion_mnist')
+#         self.transform = transform
+#         if train:
+#             self.ds = ds_dict["train"]
+#         else:
+#             self.ds = ds_dict["test"]
+#
+#     def __len__(self):
+#         return len(list(self.ds))
+#
+#     def __getitem__(self, idx):
+#         return self.ds["image"], self.ds["label"]
+
+
 class Fashion(datasets.FashionMNIST):
 
     def __getitem__(self, index: int):
@@ -1199,6 +1229,71 @@ class Fashion(datasets.FashionMNIST):
         return img, target
 
 
+class Cifar100C(Dataset):
+    """Corrupted Cifar-100 dataset."""
+    #dataset_folder = Path(DATA_DIR) / "cifar100_C"
+    """Folder to store images in."""
+
+    def __init__(self, train: bool = False, transform: List = None, corruption_level: int = 1):
+        """Initilize dataset.
+
+        :param train: If True train set is return, else test set
+        :param transform: Transfroms to apply to images
+        """
+        dataset_name = "cifar100_C" + str(corruption_level) + "_train" + str(train)
+        self.dataset_folder = Path(DATA_DIR) / dataset_name
+        self.train = train
+        self.severity = corruption_level
+        self.download()
+        # self.data = datasets.DatasetFolder(root=self.dataset_folder + '/', loader=npy_loader, extensions=['.npy'])
+        #self.data = torch.from_numpy(np.load(self.dataset_folder / 'gaussian_noise.npy'))
+        #self.labels = torch.from_numpy(np.load(self.dataset_folder / 'labels.npy'))
+        self.data = np.load(self.dataset_folder / 'gaussian_noise.npy')
+        self.labels = np.load(self.dataset_folder / 'labels.npy')
+        print("-------------------------", self.labels[:10])
+        print(len(self.data), len(self.labels), "--------------------")
+        print("image size:", self.data[0].shape)
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        img = self.data[idx]
+        label = self.labels[idx]
+        if self.transform:
+            img = self.transform(img)
+        return img, label
+
+    def download(self):
+        """Download dataset."""
+        if self.dataset_folder.exists():
+            print("Dataset corruptions already created.")
+            return
+        # create folder an corruptions of severity level for length of dataset
+        os.mkdir(self.dataset_folder)
+        def gaussian_noise(x, severity=1):
+            c = [0.04, 0.06, .08, .09, .10][severity - 1]
+            x = np.array(x) / 255.
+            return np.clip(x + np.random.normal(size=x.shape, scale=c), 0, 1) * 255
+        #def shot_noise(x, severity=1):
+        #    c = [500, 250, 100, 75, 50][severity - 1]
+        #    x = np.array(x) / 255.
+        #    return np.clip(np.random.poisson(x * c) / c, 0, 1) * 255
+
+        original_ds = datasets.CIFAR100(root=DATA_DIR, train=self.train, download=True)
+        convert_img = Compose([ToTensor(), ToPILImage()])
+        cifar_c, labels = [], []
+        for img, label in zip(original_ds.data, original_ds.targets):
+            labels.append(label)
+            cifar_c.append(np.uint8(gaussian_noise(convert_img(img), self.severity)))
+        np.save(self.dataset_folder / 'gaussian_noise.npy',
+                np.array(cifar_c).astype(np.uint8))
+        np.save(self.dataset_folder / 'labels.npy',
+                np.array(labels).astype(np.uint8))
+
+
+
 def get_dataset(dataset_name: str, train: bool = False, size: int = None):
     """Load pytorch dataset.
 
@@ -1210,6 +1305,8 @@ def get_dataset(dataset_name: str, train: bool = False, size: int = None):
         dataset = datasets.CIFAR10(root=DATA_DIR, train=train, download=True)
     if dataset_name == "cifar100":
         dataset = datasets.CIFAR100(root=DATA_DIR, train=train, download=True)
+    if dataset_name == "cifar100-c1":
+        dataset = Cifar100C( train=train, corruption_level=1)
     if dataset_name == "imagenet":
         dataset = ImageNetDataset(train=train)
     if dataset_name == "fashion":
